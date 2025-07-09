@@ -415,3 +415,20 @@ bool XML_str_eq(XML_StringView a, XML_StringView b)
     }
     return true;
 }
+
+bool XML_str_eq_cstr(XML_StringView a, const char *b) 
+{
+    if (a.length != XML_strlen(b))
+    {
+        return false; 
+    }
+
+    for (size_t i = 0; i < a.length; i++) 
+    {
+        if (a.start[i] != b[i]) 
+        {
+            return false;
+        }
+    }
+    return true;
+}
