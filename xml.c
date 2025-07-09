@@ -1,6 +1,7 @@
 #include "xml.h"
 #include <stdlib.h>
 #include <ctype.h>
+#include <setjmp.h>
 
 #ifdef _WIN32
 #define _CRT_SECURE_NO_WARNINGS
@@ -12,6 +13,7 @@
 typedef struct {
     const char *src;
     size_t cursor;
+    jmp_buf on_error;
 } XML_Context;
 
 static void XML_add_content(XML_ContentList *content_list, XML_Token content) 
@@ -134,21 +136,8 @@ static bool XML_expect(XML_Context *ctx, char ch)
         return true;
     }
 
-    // TODO: error handling
     fprintf(stderr, "XML error: expected '%c'!\n", ch);
-    return false;
-}
-
-static bool XML_expect_str(XML_Context *ctx, XML_StringView str) 
-{
-    if (XML_starts_with_str(&ctx->src[ctx->cursor], str)) 
-    {
-        ctx->cursor += str.length;
-        return true;
-    }
-
-    // TODO: error handling
-    fprintf(stderr, "XML error: expected \"%.*s\"!\n", (int)str.length, str.start);
+    longjmp(ctx->on_error, 1);
     return false;
 }
 
@@ -161,8 +150,8 @@ static bool XML_expect_cstr(XML_Context *ctx, const char *str)
         return true;
     }
 
-    // TODO: error handling
     fprintf(stderr, "XML error: expected \"%s\"\n", str);
+    longjmp(ctx->on_error, 1);
     return false;
 }
 
@@ -391,14 +380,23 @@ bool XML_parse_file(const char *src, XML_Token *token)
         .cursor = 0,
     };
 
-    if (!XML_expect_cstr(&ctx, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")) 
+    if (!XML_expect_cstr(&ctx, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>")) 
     {
         fprintf(stderr, "XML error: failed to parse header!\n");
         return false;
     }
 
-    *token = XML_parse(&ctx);
-    return true;
+    if (setjmp(ctx.on_error)) 
+    {
+        fprintf(stderr, "XML error: parsing failed!\n");
+        return false;
+    }
+    else 
+    {
+        XML_skip_ws(&ctx);
+        *token = XML_parse(&ctx);
+        return true;
+    }
 }
 
 bool XML_str_eq(XML_StringView a, XML_StringView b) 

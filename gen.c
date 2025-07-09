@@ -16,10 +16,12 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    XML_parse_file(src, &root);
-    XML_debug_print(stdout, root);
-    XML_free(root);
-    free(src);
+    if (XML_parse_file(src, &root)) 
+    {
+        XML_debug_print(stdout, root);
+        XML_free(root);
+    }
 
+    free(src);
     return 0;
 }
