@@ -56,13 +56,16 @@ typedef struct {
     size_t cursor;
 } XML_Context;
 
-void XML_add_content(XML_ContentList *content_list, XML_Token content) {
-    if (content_list->tokens == NULL) {
+void XML_add_content(XML_ContentList *content_list, XML_Token content) 
+{
+    if (content_list->tokens == NULL) 
+    {
         content_list->capacity = DYNARRAY_START_CAP;
         content_list->tokens = calloc(content_list->capacity, sizeof(content));
     }
 
-    if (content_list->length >= content_list->capacity) {
+    if (content_list->length >= content_list->capacity)
+    {
         content_list->capacity *= DYNARRAY_GROWTH;
         content_list->tokens = realloc(content_list->tokens, content_list->capacity * sizeof(*content_list->tokens));
     }
@@ -70,14 +73,17 @@ void XML_add_content(XML_ContentList *content_list, XML_Token content) {
     content_list->tokens[content_list->length++] = content;
 }
 
-void XML_add_attrib(XML_Tag *tag, XML_Attrib attrib) {
+void XML_add_attrib(XML_Tag *tag, XML_Attrib attrib) 
+{
     XML_Attribs *attribs = &tag->attribs;
-    if (attribs->attribs == NULL) {
+    if (attribs->attribs == NULL) 
+    {
         attribs->capacity = DYNARRAY_START_CAP;
         attribs->attribs = calloc(attribs->capacity, sizeof(attrib));
     }
 
-    if (attribs->length >= attribs->capacity) {
+    if (attribs->length >= attribs->capacity) 
+    {
         attribs->capacity *= DYNARRAY_GROWTH;
         attribs->attribs = realloc(attribs->attribs, attribs->capacity * sizeof(*attribs->attribs));
     }
@@ -85,11 +91,13 @@ void XML_add_attrib(XML_Tag *tag, XML_Attrib attrib) {
     attribs->attribs[attribs->length++] = attrib;
 }
 
-XML_StringView XML_take_until_tag(XML_Context *ctx) {
+XML_StringView XML_take_until_tag(XML_Context *ctx) 
+{
     XML_StringView str = {0};
 
     str.start = &ctx->src[ctx->cursor];
-    while (ctx->src[ctx->cursor] != '<') {
+    while (ctx->src[ctx->cursor] != '<') 
+    {
         ctx->cursor++;
         str.length++;
     }
@@ -97,17 +105,21 @@ XML_StringView XML_take_until_tag(XML_Context *ctx) {
     return str;
 }
 
-void XML_skip_ws(XML_Context *ctx) {
-    while (isspace(ctx->src[ctx->cursor])) {
+void XML_skip_ws(XML_Context *ctx) 
+{
+    while (isspace(ctx->src[ctx->cursor])) 
+    {
         ctx->cursor++; 
     }
 }
 
-XML_StringView XML_parse_ident(XML_Context *ctx) {
+XML_StringView XML_parse_ident(XML_Context *ctx) 
+{
     XML_StringView str = {0};
     str.start = &ctx->src[ctx->cursor];
 
-    while (isalpha(ctx->src[ctx->cursor]) || isdigit(ctx->src[ctx->cursor])) {
+    while (isalpha(ctx->src[ctx->cursor]) || isdigit(ctx->src[ctx->cursor])) 
+    {
         ctx->cursor++; 
         str.length++;
     }
@@ -115,8 +127,10 @@ XML_StringView XML_parse_ident(XML_Context *ctx) {
     return str;
 }
 
-bool XML_expect(XML_Context *ctx, char ch) {
-    if (ctx->src[ctx->cursor] == ch) {
+bool XML_expect(XML_Context *ctx, char ch) 
+{
+    if (ctx->src[ctx->cursor] == ch) 
+    {
         ctx->cursor++;
         return true;
     }
@@ -124,9 +138,12 @@ bool XML_expect(XML_Context *ctx, char ch) {
     return false;
 }
 
-bool XML_expect_str(XML_Context *ctx, XML_StringView str) {
-    for (size_t i = 0; i < str.length; i++) {
-        if (ctx->src[ctx->cursor + i] == '\0' || ctx->src[ctx->cursor + i] != str.start[i]) {
+bool XML_expect_str(XML_Context *ctx, XML_StringView str) 
+{
+    for (size_t i = 0; i < str.length; i++) 
+    {
+        if (ctx->src[ctx->cursor + i] == '\0' || ctx->src[ctx->cursor + i] != str.start[i]) 
+        {
             return false;
         }
     }
@@ -135,19 +152,24 @@ bool XML_expect_str(XML_Context *ctx, XML_StringView str) {
     return true;
 }
 
-size_t XML_strlen(const char *str) {
+size_t XML_strlen(const char *str) 
+{
     size_t length = 0;
-    while (str[length] != '\0') {
+    while (str[length] != '\0') 
+    {
         length++;
     }
     return length;
 }
 
-bool XML_expect_cstr(XML_Context *ctx, const char *str) {
+bool XML_expect_cstr(XML_Context *ctx, const char *str) 
+{
     size_t length = XML_strlen(str);
 
-    for (size_t i = 0; i < length; i++) {
-        if (ctx->src[ctx->cursor + i] == '\0' || ctx->src[ctx->cursor + i] != str[i]) {
+    for (size_t i = 0; i < length; i++) 
+    {
+        if (ctx->src[ctx->cursor + i] == '\0' || ctx->src[ctx->cursor + i] != str[i]) 
+        {
             return false;
         }
     }
@@ -156,14 +178,17 @@ bool XML_expect_cstr(XML_Context *ctx, const char *str) {
     return true;
 }
 
-XML_StringView XML_parse_string_literal(XML_Context *ctx) {
+XML_StringView XML_parse_string_literal(XML_Context *ctx) 
+{
     XML_expect(ctx, '"');
 
     XML_StringView str = {0};
     str.start = &ctx->src[ctx->cursor];
 
-    while (ctx->src[ctx->cursor] != '"') {
-        if (ctx->src[ctx->cursor] == '\0') {
+    while (ctx->src[ctx->cursor] != '"') 
+    {
+        if (ctx->src[ctx->cursor] == '\0') 
+        {
             fprintf(stderr, "XML error: unexpected EOF!\n");
             break;
         }
@@ -176,7 +201,8 @@ XML_StringView XML_parse_string_literal(XML_Context *ctx) {
     return str;
 }
 
-XML_Attrib XML_parse_attrib(XML_Context *ctx) {
+XML_Attrib XML_parse_attrib(XML_Context *ctx) 
+{
     XML_Attrib attrib = {0};
 
     attrib.name = XML_parse_ident(ctx);
@@ -186,13 +212,12 @@ XML_Attrib XML_parse_attrib(XML_Context *ctx) {
     return attrib;
 }
 
-bool XML_attempt_parse_end_tag(XML_Context *ctx, XML_StringView tag) {
+bool XML_attempt_parse_end_tag(XML_Context *ctx, XML_StringView tag) 
+{
     size_t previous_cursor = ctx->cursor;
 
-    if (XML_expect_cstr(ctx, "</")
-            && XML_expect_str(ctx, tag) 
-            && XML_expect(ctx, '>')
-    ) {
+    if (XML_expect_cstr(ctx, "</") && XML_expect_str(ctx, tag) && XML_expect(ctx, '>')) 
+    {
         return true;
     }
 
@@ -202,7 +227,8 @@ bool XML_attempt_parse_end_tag(XML_Context *ctx, XML_StringView tag) {
 
 XML_Token XML_parse(XML_Context *ctx);
 
-XML_ContentList XML_parse_content(XML_Context *ctx) {
+XML_ContentList XML_parse_content(XML_Context *ctx) 
+{
     XML_ContentList content_list = {0};
 
     XML_expect(ctx, '<');
@@ -210,7 +236,8 @@ XML_ContentList XML_parse_content(XML_Context *ctx) {
     content_list.tag.name = XML_parse_ident(ctx);
     XML_skip_ws(ctx);
 
-    while (ctx->src[ctx->cursor] != '>') {
+    while (ctx->src[ctx->cursor] != '>') 
+    {
         XML_Attrib attrib = XML_parse_attrib(ctx);
         XML_add_attrib(&content_list.tag, attrib);
         XML_skip_ws(ctx);
@@ -218,7 +245,8 @@ XML_ContentList XML_parse_content(XML_Context *ctx) {
 
     XML_expect(ctx, '>');
 
-    while (!XML_attempt_parse_end_tag(ctx, content_list.tag.name)) {
+    while (!XML_attempt_parse_end_tag(ctx, content_list.tag.name)) 
+    {
         XML_Token next_token = XML_parse(ctx);
         XML_add_content(&content_list, next_token);
     }
@@ -278,9 +306,12 @@ XML_Token XML_parse(XML_Context *ctx)
     return token;
 }
 
-void XML_free_recursively(XML_ContentList content) {
-    for (size_t i = 0; i < content.length; i++) {
-        if (content.tokens[i].type == XML_TOKEN_NODE) {
+void XML_free_recursively(XML_ContentList content) 
+{
+    for (size_t i = 0; i < content.length; i++) 
+    {
+        if (content.tokens[i].type == XML_TOKEN_NODE) 
+        {
             XML_free_recursively(content.tokens[i].value.content);
         }
     }
@@ -288,21 +319,26 @@ void XML_free_recursively(XML_ContentList content) {
     free(content.tag.attribs.attribs);
 }
 
-void XML_free(XML_Token root) {
-    if (root.type == XML_TOKEN_TEXT) {
+void XML_free(XML_Token root) 
+{
+    if (root.type == XML_TOKEN_TEXT) 
+    {
         return;
     }
     XML_free_recursively(root.value.content);
 }
 
-int main(int argc, char **argv) {
-    if (argc < 2) {
+int main(int argc, char **argv) 
+{
+    if (argc < 2) 
+    {
         fprintf(stderr, "Usage: %s <xml file>\n", argv[0]);
         return 1;
     }
 
     FILE *fp = fopen(argv[1], "r");
-    if (!fp) {
+    if (!fp) 
+    {
         fprintf(stderr, "Error opening file `%s`!\n", argv[1]);
         return 1;
     }
