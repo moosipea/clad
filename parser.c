@@ -379,18 +379,12 @@ void XML_debug_print(FILE *file, XML_Token root)
     }
 }
 
-char *open_input_file(int argc, char **argv) 
+char *XML_read_file(const char *file_name) 
 {
-    if (argc < 2) 
-    {
-        fprintf(stderr, "Usage: %s <xml file>\n", argv[0]);
-        return NULL;
-    }
-
-    FILE *fp = fopen(argv[1], "r");
+    FILE *fp = fopen(file_name, "r");
     if (!fp) 
     {
-        fprintf(stderr, "Error opening file `%s`!\n", argv[1]);
+        fprintf(stderr, "Error opening file `%s`!\n", file_name);
         return NULL;
     }
 
@@ -407,22 +401,39 @@ char *open_input_file(int argc, char **argv)
     return input_buffer;
 }
 
-int main(int argc, char **argv) 
-{
-    char *input_buffer = open_input_file(argc, argv);
-    if (input_buffer == NULL) {
-        return 1;
-    }
-    
-    XML_Context parse_ctx = {
-        .src = input_buffer,
+bool XML_parse_file(const char *src, XML_Token *token) {
+    XML_Context ctx = {
+        .src = src,
         .cursor = 0,
     };
 
-    XML_Token root = XML_parse(&parse_ctx);
+    if (!XML_expect_cstr(&ctx, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")) {
+        fprintf(stderr, "XML error: failed to parse header!\n");
+        return false;
+    }
+
+    *token = XML_parse(&ctx);
+    return true;
+}
+
+int main(int argc, char **argv) 
+{
+    if (argc < 2) 
+    {
+        fprintf(stderr, "Usage: %s <xml file>\n", argv[0]);
+        return 1;
+    }
+
+    XML_Token root;
+    char *src = XML_read_file(argv[1]);
+    if (!src) {
+        return 1;
+    }
+
+    XML_parse_file(src, &root);
     XML_debug_print(stdout, root);
     XML_free(root);
-    free(input_buffer);
+    free(src);
 
     return 0;
 }
