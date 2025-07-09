@@ -103,13 +103,11 @@ void XML_skip_ws(XML_Context *ctx) {
     }
 }
 
-// TODO: also allow numbers and underscores?
-// Nothing to lose really...
 XML_StringView XML_parse_ident(XML_Context *ctx) {
     XML_StringView str = {0};
     str.start = &ctx->src[ctx->cursor];
 
-    while (isalpha(ctx->src[ctx->cursor])) {
+    while (isalpha(ctx->src[ctx->cursor]) || isdigit(ctx->src[ctx->cursor])) {
         ctx->cursor++; 
         str.length++;
     }
@@ -118,35 +116,43 @@ XML_StringView XML_parse_ident(XML_Context *ctx) {
 }
 
 bool XML_expect(XML_Context *ctx, char ch) {
-    bool success;
-
-    if (ctx->src[ctx->cursor] != ch) {
-        fprintf(stderr, "XML error: expected '%c' at %s!\n", ch, &ctx->src[ctx->cursor]);
-        success = false;
+    if (ctx->src[ctx->cursor] == ch) {
+        ctx->cursor++;
+        return true;
     }
 
-    ctx->cursor++;
-    success = true;
-    return success;
+    return false;
 }
 
 bool XML_expect_str(XML_Context *ctx, XML_StringView str) {
     for (size_t i = 0; i < str.length; i++) {
         if (ctx->src[ctx->cursor + i] == '\0' || ctx->src[ctx->cursor + i] != str.start[i]) {
-            fprintf(stderr, "XML error: expected %*.s!\n", (int)str.length, str.start);
             return false;
         }
     }
+
+    ctx->cursor += str.length;
     return true;
 }
 
+size_t XML_strlen(const char *str) {
+    size_t length = 0;
+    while (str[length] != '\0') {
+        length++;
+    }
+    return length;
+}
+
 bool XML_expect_cstr(XML_Context *ctx, const char *str) {
-    for (size_t i = 0; str[i] != '\0'; i++) {
+    size_t length = XML_strlen(str);
+
+    for (size_t i = 0; i < length; i++) {
         if (ctx->src[ctx->cursor + i] == '\0' || ctx->src[ctx->cursor + i] != str[i]) {
-            fprintf(stderr, "XML error: expected %s!\n", str);
             return false;
         }
     }
+
+    ctx->cursor += length;
     return true;
 }
 
@@ -180,7 +186,7 @@ XML_Attrib XML_parse_attrib(XML_Context *ctx) {
     return attrib;
 }
 
-bool XML_at_end_tag(XML_Context *ctx, XML_StringView tag) {
+bool XML_attempt_parse_end_tag(XML_Context *ctx, XML_StringView tag) {
     size_t previous_cursor = ctx->cursor;
 
     if (XML_expect_cstr(ctx, "</")
@@ -212,29 +218,59 @@ XML_ContentList XML_parse_content(XML_Context *ctx) {
 
     XML_expect(ctx, '>');
 
-    while (!XML_at_end_tag(ctx, content_list.tag.name)) {
+    while (!XML_attempt_parse_end_tag(ctx, content_list.tag.name)) {
         XML_Token next_token = XML_parse(ctx);
         XML_add_content(&content_list, next_token);
     }
 
-    XML_skip_ws(ctx);
-    XML_expect_cstr(ctx, "</");
-    XML_skip_ws(ctx);
-    XML_expect_str(ctx, content_list.tag.name);
-    XML_skip_ws(ctx);
-    XML_expect(ctx, '>');
-
     return content_list;
 }
 
-XML_Token XML_parse(XML_Context *ctx) {
+// TODO: Use this in expect functions
+bool XML_starts_with(const char *str, const char *with)
+{
+    for (size_t i = 0; with[i] != '\0'; i++)
+    {
+        if (str[i] == '\0' || str[i] != with[i]) 
+        {
+            return false;
+        } 
+    }
+
+    return true;
+}
+
+void XML_skip_comment(XML_Context *ctx)
+{
+    XML_expect_cstr(ctx, "<!--");
+    
+    while (ctx->src[ctx->cursor] != '\0' && !XML_starts_with(&ctx->src[ctx->cursor], "-->")) 
+    {
+        ctx->cursor++;
+    }
+
+    // Account for "-->"
+    ctx->cursor += 3;
+}
+
+XML_Token XML_parse(XML_Context *ctx)
+{
     XML_Token token = {0};
 
-    if (ctx->src[ctx->cursor] == '<') {
+    if (ctx->src[ctx->cursor] == '<')
+    {
+        if (ctx->src[ctx->cursor + 1] == '!')
+        {
+            XML_skip_comment(ctx);
+            XML_skip_ws(ctx);
+            return XML_parse(ctx);
+        }
+
         token.type = XML_TOKEN_NODE; 
         token.value.content = XML_parse_content(ctx);
     } 
-    else {
+    else 
+    {
         token.type = XML_TOKEN_TEXT;
         token.value.text = XML_take_until_tag(ctx);
     }
