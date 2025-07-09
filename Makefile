@@ -1,5 +1,13 @@
 CC := gcc
-CFLAGS := -Wall -Wextra -pedantic -ggdb -MMD -MP
+
+CFLAGS := -Wall -Wextra -pedantic -MMD -MP
+BUILD_TYPE := DEBUG
+
+ifeq ($(BUILD_TYPE),DEBUG)
+	CFLAGS += -ggdb
+else ifeq ($(BUILD_TYPE),RELEASE)
+	CFLAGS += -O3
+endif
 
 BUILD_DIR := build
 BINARY_NAME := $(BUILD_DIR)/xml

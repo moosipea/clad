@@ -50,5 +50,6 @@ void XML_free(XML_Token root);
 
 char *XML_read_file(const char *file_name);
 void XML_debug_print(FILE *file, XML_Token root);
+bool XML_str_eq(XML_StringView a, XML_StringView b);
 
 #endif

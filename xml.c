@@ -90,28 +90,29 @@ static XML_StringView XML_parse_ident(XML_Context *ctx)
     return str;
 }
 
-static bool XML_expect(XML_Context *ctx, char ch) 
+static bool XML_starts_with_str(const char *str, XML_StringView with) 
 {
-    if (ctx->src[ctx->cursor] == ch) 
+    for (size_t i = 0; i < with.length; i++) 
     {
-        ctx->cursor++;
-        return true;
-    }
-
-    return false;
-}
-
-static bool XML_expect_str(XML_Context *ctx, XML_StringView str) 
-{
-    for (size_t i = 0; i < str.length; i++) 
-    {
-        if (ctx->src[ctx->cursor + i] == '\0' || ctx->src[ctx->cursor + i] != str.start[i]) 
+        if (str[i] == '\0' || str[i] != with.start[i]) 
         {
             return false;
         }
     }
+    
+    return true;
+}
 
-    ctx->cursor += str.length;
+static bool XML_starts_with_cstr(const char *str, const char *with)
+{
+    for (size_t i = 0; with[i] != '\0'; i++)
+    {
+        if (str[i] == '\0' || str[i] != with[i]) 
+        {
+            return false;
+        } 
+    }
+
     return true;
 }
 
@@ -125,20 +126,44 @@ static size_t XML_strlen(const char *str)
     return length;
 }
 
+static bool XML_expect(XML_Context *ctx, char ch) 
+{
+    if (ctx->src[ctx->cursor] == ch) 
+    {
+        ctx->cursor++;
+        return true;
+    }
+
+    // TODO: error handling
+    fprintf(stderr, "XML error: expected '%c'!\n", ch);
+    return false;
+}
+
+static bool XML_expect_str(XML_Context *ctx, XML_StringView str) 
+{
+    if (XML_starts_with_str(&ctx->src[ctx->cursor], str)) 
+    {
+        ctx->cursor += str.length;
+        return true;
+    }
+
+    // TODO: error handling
+    fprintf(stderr, "XML error: expected \"%.*s\"!\n", (int)str.length, str.start);
+    return false;
+}
+
 static bool XML_expect_cstr(XML_Context *ctx, const char *str) 
 {
     size_t length = XML_strlen(str);
-
-    for (size_t i = 0; i < length; i++) 
+    if (XML_starts_with_cstr(&ctx->src[ctx->cursor], str)) 
     {
-        if (ctx->src[ctx->cursor + i] == '\0' || ctx->src[ctx->cursor + i] != str[i]) 
-        {
-            return false;
-        }
+        ctx->cursor += length;
+        return true;
     }
 
-    ctx->cursor += length;
-    return true;
+    // TODO: error handling
+    fprintf(stderr, "XML error: expected \"%s\"\n", str);
+    return false;
 }
 
 static XML_StringView XML_parse_string_literal(XML_Context *ctx) 
@@ -177,15 +202,29 @@ static XML_Attrib XML_parse_attrib(XML_Context *ctx)
 
 static bool XML_attempt_parse_end_tag(XML_Context *ctx, XML_StringView tag) 
 {
-    size_t previous_cursor = ctx->cursor;
+    size_t cursor = ctx->cursor;
+    bool matches = true;
 
-    if (XML_expect_cstr(ctx, "</") && XML_expect_str(ctx, tag) && XML_expect(ctx, '>')) 
-    {
-        return true;
+    matches &= XML_starts_with_cstr(&ctx->src[cursor], "</");
+    cursor += 2;
+    if (!matches) {
+        return false;
     }
 
-    ctx->cursor = previous_cursor;
-    return false;
+    matches &= XML_starts_with_str(&ctx->src[cursor], tag);
+    cursor += tag.length;
+    if (!matches) {
+        return false;
+    }
+
+    matches &= XML_starts_with_cstr(&ctx->src[cursor], ">");
+    cursor++;
+    if (!matches) {
+        return false;
+    }
+
+    ctx->cursor = cursor;
+    return true;
 }
 
 static XML_Token XML_parse(XML_Context *ctx);
@@ -229,25 +268,11 @@ static XML_ContentList XML_parse_content(XML_Context *ctx)
     return content_list;
 }
 
-// TODO: Use this in expect functions
-static bool XML_starts_with(const char *str, const char *with)
-{
-    for (size_t i = 0; with[i] != '\0'; i++)
-    {
-        if (str[i] == '\0' || str[i] != with[i]) 
-        {
-            return false;
-        } 
-    }
-
-    return true;
-}
-
 static void XML_skip_comment(XML_Context *ctx)
 {
     XML_expect_cstr(ctx, "<!--");
     
-    while (ctx->src[ctx->cursor] != '\0' && !XML_starts_with(&ctx->src[ctx->cursor], "-->")) 
+    while (ctx->src[ctx->cursor] != '\0' && !XML_starts_with_cstr(&ctx->src[ctx->cursor], "-->")) 
     {
         ctx->cursor++;
     }
@@ -267,7 +292,7 @@ static XML_Token XML_parse(XML_Context *ctx)
 {
     XML_Token token = {0};
 
-    if (XML_starts_with(&ctx->src[ctx->cursor], "<!--")) {
+    if (XML_starts_with_cstr(&ctx->src[ctx->cursor], "<!--")) {
         XML_skip_comment(ctx);
     }
 
@@ -376,3 +401,19 @@ bool XML_parse_file(const char *src, XML_Token *token)
     return true;
 }
 
+bool XML_str_eq(XML_StringView a, XML_StringView b) 
+{
+    if (a.length != b.length)
+    {
+        return false; 
+    }
+
+    for (size_t i = 0; i < a.length; i++) 
+    {
+        if (a.start[i] != b.start[i]) 
+        {
+            return false;
+        }
+    }
+    return true;
+}
