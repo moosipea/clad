@@ -98,6 +98,11 @@ XML_StringView XML_take_until_tag(XML_Context *ctx)
     str.start = &ctx->src[ctx->cursor];
     while (ctx->src[ctx->cursor] != '<') 
     {
+        if (ctx->src[ctx->cursor] == '\0')
+        {
+            fprintf(stderr, "XML error: unexpected EOF while parsing text! (cursor=%d)\n", (int)ctx->cursor);
+            break;
+        }
         ctx->cursor++;
         str.length++;
     }
@@ -236,19 +241,31 @@ XML_ContentList XML_parse_content(XML_Context *ctx)
     content_list.tag.name = XML_parse_ident(ctx);
     XML_skip_ws(ctx);
 
-    while (ctx->src[ctx->cursor] != '>') 
+    while (ctx->src[ctx->cursor] != '>' && ctx->src[ctx->cursor] != '/') 
     {
         XML_Attrib attrib = XML_parse_attrib(ctx);
         XML_add_attrib(&content_list.tag, attrib);
         XML_skip_ws(ctx);
     }
 
-    XML_expect(ctx, '>');
-
-    while (!XML_attempt_parse_end_tag(ctx, content_list.tag.name)) 
+    // Self-closing tag
+    if (ctx->src[ctx->cursor] == '/') 
     {
-        XML_Token next_token = XML_parse(ctx);
-        XML_add_content(&content_list, next_token);
+        XML_expect_cstr(ctx, "/>");
+    } 
+    else 
+    {
+        XML_expect(ctx, '>');
+        while (!XML_attempt_parse_end_tag(ctx, content_list.tag.name)) 
+        {
+            if (ctx->src[ctx->cursor] == '\0') 
+            {
+                fprintf(stderr, "XML error: expected closing tag, but got EOF!\n");
+                break;
+            }
+            XML_Token next_token = XML_parse(ctx);
+            XML_add_content(&content_list, next_token);
+        }
     }
 
     return content_list;
@@ -277,27 +294,31 @@ void XML_skip_comment(XML_Context *ctx)
         ctx->cursor++;
     }
 
-    // Account for "-->"
-    ctx->cursor += 3;
+    if (ctx->src[ctx->cursor] == '\0') 
+    {
+        fprintf(stderr, "XML error: unterminated comment!\n");
+    }
+    else 
+    {
+        // Account for "-->"
+        ctx->cursor += 3;
+    }
 }
 
 XML_Token XML_parse(XML_Context *ctx)
 {
     XML_Token token = {0};
 
+    if (XML_starts_with(&ctx->src[ctx->cursor], "<!--")) {
+        XML_skip_comment(ctx);
+    }
+
     if (ctx->src[ctx->cursor] == '<')
     {
-        if (ctx->src[ctx->cursor + 1] == '!')
-        {
-            XML_skip_comment(ctx);
-            XML_skip_ws(ctx);
-            return XML_parse(ctx);
-        }
-
         token.type = XML_TOKEN_NODE; 
         token.value.content = XML_parse_content(ctx);
     } 
-    else 
+    else if (ctx->src[ctx->cursor] != '\0')
     {
         token.type = XML_TOKEN_TEXT;
         token.value.text = XML_take_until_tag(ctx);
@@ -328,19 +349,49 @@ void XML_free(XML_Token root)
     XML_free_recursively(root.value.content);
 }
 
-int main(int argc, char **argv) 
+void XML_debug_print(FILE *file, XML_Token root) 
+{
+    if (root.type == XML_TOKEN_TEXT) 
+    {
+        fprintf(file, "%.*s", (int)root.value.text.length, root.value.text.start);
+    }
+    else 
+    {
+        XML_ContentList content = root.value.content;
+        XML_StringView tag_name = content.tag.name;
+        XML_Attribs attribs = content.tag.attribs;
+
+        fprintf(file, "<%.*s", (int)tag_name.length, tag_name.start);
+        for (size_t i = 0; i < attribs.length; i++) 
+        {
+            XML_Attrib attrib = attribs.attribs[i];
+            fprintf(file, " %.*s=\"%.*s\"", 
+                    (int)attrib.name.length, attrib.name.start, 
+                    (int)attrib.value.length, attrib.value.start);
+        }
+        fputc('>', file);
+
+        for (size_t j = 0; j < content.length; j++) {
+            XML_debug_print(file, content.tokens[j]);
+        }
+
+        fprintf(file, "</%.*s>", (int)tag_name.length, tag_name.start);
+    }
+}
+
+char *open_input_file(int argc, char **argv) 
 {
     if (argc < 2) 
     {
         fprintf(stderr, "Usage: %s <xml file>\n", argv[0]);
-        return 1;
+        return NULL;
     }
 
     FILE *fp = fopen(argv[1], "r");
     if (!fp) 
     {
         fprintf(stderr, "Error opening file `%s`!\n", argv[1]);
-        return 1;
+        return NULL;
     }
 
     long length;
@@ -353,12 +404,23 @@ int main(int argc, char **argv)
     input_buffer[length] = '\0';
     fclose(fp);
 
+    return input_buffer;
+}
+
+int main(int argc, char **argv) 
+{
+    char *input_buffer = open_input_file(argc, argv);
+    if (input_buffer == NULL) {
+        return 1;
+    }
+    
     XML_Context parse_ctx = {
         .src = input_buffer,
         .cursor = 0,
     };
 
     XML_Token root = XML_parse(&parse_ctx);
+    XML_debug_print(stdout, root);
     XML_free(root);
     free(input_buffer);
 

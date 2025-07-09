@@ -20,4 +20,4 @@ $(BINARY_NAME): $(OBJECTS)
 
 $(BUILD_DIR)/%.o: %.c Makefile
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
+	$(CC) $(CFLAGS) -c -o $@ $<
