@@ -99,7 +99,12 @@ void generate_types(FILE *file, XML_Token *types)
 {
     for (size_t i = 0; i < types->value.content.length; i++) 
     {
-        write_inner_text(file, types->value.content.tokens[i]);
+        XML_Token token = types->value.content.tokens[i];
+        if (token.type == XML_TOKEN_TEXT) 
+        {
+            continue; 
+        }
+        write_inner_text(file, token);
         fputc('\n', file);
     }
 }
