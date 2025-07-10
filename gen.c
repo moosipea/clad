@@ -121,19 +121,12 @@ void generate_command(FILE *file, XML_Token command)
 {
     size_t tag_index = 0;
     XML_Token *proto = find_next(command, "proto", &tag_index);
-
-    if (proto->type != XML_TOKEN_NODE || proto->value.content.length != 2) 
-    {
-        fprintf(stderr, "Generation error: invalid command tag!\n");
-        return;
-    }
-
     XML_Token return_type = proto->value.content.tokens[0];
-    XML_Token command_name = proto->value.content.tokens[1];
+    XML_Token *command_name = find_next(*proto, "name", NULL);
 
     write_inner_text(file, return_type);
     fputs(PREFIX, file);
-    write_inner_text(file, command_name);
+    write_inner_text(file, *command_name);
 
     // Function parameters
     fputc('(', file);
