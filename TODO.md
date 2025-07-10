@@ -4,3 +4,4 @@
 [x] Self-closing tags
 [ ] Dump XML tree
 [ ] Code generation
+[ ] String buffer

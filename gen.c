@@ -1,8 +1,16 @@
 #include "xml.h"
 #include <stdlib.h>
 
+#define PREFIX "clad_"
+
 XML_Token *find_next(XML_Token parent, const char *tag, size_t *index)
 {
+    size_t local_index = 0;
+
+    if (index == NULL) {
+        index = &local_index;
+    }
+
     while (*index < parent.value.content.length) 
     {
         XML_Token *child = &parent.value.content.tokens[(*index)++];
@@ -100,12 +108,67 @@ void generate_types(FILE *file, XML_Token *types)
     for (size_t i = 0; i < types->value.content.length; i++) 
     {
         XML_Token token = types->value.content.tokens[i];
-        if (token.type == XML_TOKEN_TEXT) 
+        if (token.type == XML_TOKEN_TEXT || !XML_str_eq_cstr(token.value.content.tag.name, "type")) 
         {
             continue; 
         }
         write_inner_text(file, token);
         fputc('\n', file);
+    }
+}
+
+void generate_command(FILE *file, XML_Token command) 
+{
+    size_t tag_index = 0;
+    XML_Token *proto = find_next(command, "proto", &tag_index);
+
+    if (proto->type != XML_TOKEN_NODE || proto->value.content.length != 2) 
+    {
+        fprintf(stderr, "Generation error: invalid command tag!\n");
+        return;
+    }
+
+    XML_Token return_type = proto->value.content.tokens[0];
+    XML_Token command_name = proto->value.content.tokens[1];
+
+    write_inner_text(file, return_type);
+    fputs(PREFIX, file);
+    write_inner_text(file, command_name);
+
+    // Function parameters
+    fputc('(', file);
+
+    XML_Token *next_param = NULL;
+    bool first_param = true; 
+
+    while ((next_param = find_next(command, "param", &tag_index))) 
+    {
+        if (!first_param) 
+        {
+            fputs(", ", file);
+        } 
+        else 
+        {
+            first_param = false;
+        }
+
+        write_inner_text(file, *next_param);
+    }
+
+    fputs(");", file);
+}
+
+void generate_commands(FILE *file, XML_Token *commands) 
+{
+    for (size_t i = 0; i < commands->value.content.length; i++) 
+    {
+        XML_Token token = commands->value.content.tokens[i];
+        if (token.type == XML_TOKEN_TEXT || !XML_str_eq_cstr(token.value.content.tag.name, "command")) 
+        {
+            continue;
+        }
+        generate_command(file, token);
+        fputs("\n\n", file);
     }
 }
 
@@ -119,7 +182,10 @@ void generate(FILE *file, XML_Token root)
 
     size_t section_index = 0;
     XML_Token *types_section = find_next(root, "types", &section_index);
+    XML_Token *commands_section = find_next(root, "commands", &section_index);
+
     generate_types(file, types_section);
+    generate_commands(file, commands_section);
 }
 
 int main(int argc, char **argv) 
