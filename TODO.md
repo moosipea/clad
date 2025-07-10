@@ -5,3 +5,5 @@
 [x] Code generation
 [x] String buffer
 [ ] Spam asserts everywhere
+[x] Deal with <remove> tags
+[ ] Account for `requirements` when processing commands and such

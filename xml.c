@@ -437,3 +437,23 @@ bool XML_str_eq_cstr(XML_StringView a, const char *b)
     }
     return true;
 }
+
+bool XML_get_attribute(XML_Token token, const char *property, XML_StringView *out)
+{
+    if (token.type != XML_TOKEN_NODE) 
+    {
+        fprintf(stderr, "%s: expected a node, got text!\n", __FUNCTION__);
+        return false;
+    }
+    for (size_t i = 0; i < token.value.content.tag.attribs.length; i++) 
+    {
+        XML_Attrib attrib = token.value.content.tag.attribs.attribs[i]; 
+        if (XML_str_eq_cstr(attrib.name, property)) 
+        {
+            *out = attrib.value; 
+            return true;
+        }
+    }
+
+    return false;
+}
