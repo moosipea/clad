@@ -19,7 +19,7 @@ bool sv_starts_with(XML_StringView str, const char *with)
     for (size_t i = 0; i < str.length; i++) {
         if (with[i] == '\0') 
         {
-            return false;
+            break;
         }
         if (str.start[i] != with[i])
         {
