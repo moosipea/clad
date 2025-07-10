@@ -4,4 +4,5 @@
 [x] Self-closing tags
 [ ] Dump XML tree
 [ ] Code generation
-[ ] String buffer
+[x] String buffer
+[ ] Spam asserts everywhere
