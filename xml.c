@@ -196,19 +196,22 @@ static bool XML_attempt_parse_end_tag(XML_Context *ctx, XML_StringView tag)
 
     matches &= XML_starts_with_cstr(&ctx->src[cursor], "</");
     cursor += 2;
-    if (!matches) {
+    if (!matches) 
+    {
         return false;
     }
 
     matches &= XML_starts_with_str(&ctx->src[cursor], tag);
     cursor += tag.length;
-    if (!matches) {
+    if (!matches) 
+    {
         return false;
     }
 
     matches &= XML_starts_with_cstr(&ctx->src[cursor], ">");
     cursor++;
-    if (!matches) {
+    if (!matches) 
+    {
         return false;
     }
 
@@ -281,7 +284,8 @@ static XML_Token XML_parse(XML_Context *ctx)
 {
     XML_Token token = {0};
 
-    if (XML_starts_with_cstr(&ctx->src[ctx->cursor], "<!--")) {
+    if (XML_starts_with_cstr(&ctx->src[ctx->cursor], "<!--")) 
+    {
         XML_skip_comment(ctx);
     }
 
@@ -343,7 +347,8 @@ void XML_debug_print(FILE *file, XML_Token root)
         }
         fputc('>', file);
 
-        for (size_t j = 0; j < content.length; j++) {
+        for (size_t j = 0; j < content.length; j++) 
+        {
             XML_debug_print(file, content.tokens[j]);
         }
 

@@ -37,7 +37,8 @@ XML_Token *find_next(XML_Token parent, const char *tag, size_t *index)
 {
     size_t local_index = 0;
 
-    if (index == NULL) {
+    if (index == NULL) 
+    {
         index = &local_index;
     }
 
@@ -54,7 +55,8 @@ XML_Token *find_next(XML_Token parent, const char *tag, size_t *index)
 
 bool sv_starts_with(XML_StringView str, const char *with) 
 {
-    for (size_t i = 0; i < str.length; i++) {
+    for (size_t i = 0; i < str.length; i++) 
+    {
         if (with[i] == '\0') 
         {
             break;
@@ -117,7 +119,7 @@ void put_xml_string_view(StringBuffer *file, XML_StringView str)
     }
 }
 
-void write_inner_text(StringBuffer *buffer, XML_Token token)
+void write_inner_text(StringBuffer *buffer, XML_Token token, int count)
 {
     switch (token.type) 
     {
@@ -125,11 +127,14 @@ void write_inner_text(StringBuffer *buffer, XML_Token token)
             put_xml_string_view(buffer, token.value.text);
             break;
         case XML_TOKEN_NODE:
-            for (size_t i = 0; i < token.value.content.length; i++) 
             {
-                write_inner_text(buffer, token.value.content.tokens[i]);         
+                size_t max = (count < 0) ? token.value.content.length : (size_t)count;
+                for (size_t i = 0; i < max; i++) 
+                {
+                    write_inner_text(buffer, token.value.content.tokens[i], -1);         
+                }
+                break;
             }
-            break;
     }
 }
 
@@ -142,7 +147,7 @@ void generate_types(GenerationContext *ctx, XML_Token *types)
         {
             continue; 
         }
-        write_inner_text(&ctx->types, token);
+        write_inner_text(&ctx->types, token, -1);
         sb_putc('\n', &ctx->types);
     }
 }
@@ -155,12 +160,16 @@ void write_prototype(StringBuffer *sb, XML_Token command)
     XML_Token return_type = proto->value.content.tokens[0];
     XML_Token *command_name = find_next(*proto, "name", NULL);
 
-    write_inner_text(sb, return_type);
-    if (return_type.type != XML_TOKEN_TEXT) {
+    write_inner_text(sb, return_type, -1);
+
+    // If the return type is `void`, we want to avoid adding an extra space but
+    // otherwise it's required.
+    if (return_type.type != XML_TOKEN_TEXT) 
+    {
         sb_putc(' ', sb);
     }
     sb_puts(PREFIX, sb);
-    write_inner_text(sb, *command_name);
+    write_inner_text(sb, *command_name, -1);
 
     // Function parameters
     sb_putc('(', sb);
@@ -179,8 +188,117 @@ void write_prototype(StringBuffer *sb, XML_Token command)
             first_param = false;
         }
 
-        write_inner_text(sb, *next_param);
+        write_inner_text(sb, *next_param, -1);
     }
+    
+    sb_puts(")", sb);
+}
+
+void write_as_function_ptr_type(StringBuffer *sb, XML_Token command) 
+{
+    size_t tag_index = 0;
+    XML_Token *proto = find_next(command, "proto", &tag_index);
+    XML_Token return_type = proto->value.content.tokens[0];
+
+    write_inner_text(sb, return_type, -1);
+
+    // If the return type is `void`, we want to avoid adding an extra space but
+    // otherwise it's required.
+    if (return_type.type != XML_TOKEN_TEXT) 
+    {
+        sb_putc(' ', sb);
+    }
+
+    sb_puts("(*)", sb);
+    sb_putc('(', sb);
+
+    XML_Token *next_param = NULL;
+    bool first_param = true; 
+
+    while ((next_param = find_next(command, "param", &tag_index))) 
+    {
+        if (!first_param) 
+        {
+            sb_puts(", ", sb);
+        } 
+        else 
+        {
+            first_param = false;
+        }
+
+        // Only write the types, not paramater names. This is more complex thad
+        // I'd like but gl.xml doesn't include qualifiers such as const in the
+        // type.
+        write_inner_text(sb, *next_param, next_param->value.content.length - 1);
+
+        // A bit of a hack to strip of the trailing space.
+        if (sb->ptr[sb->length - 1] == ' ') 
+        {
+            sb->ptr[--sb->length] = '\0';
+        }
+    }
+
+    sb_putc(')', sb);
+}
+
+void write_parameter_names(StringBuffer *sb, XML_Token command) 
+{
+    size_t param_index = 0;
+    XML_Token *next_param = NULL;
+    bool first_param = true; 
+
+    while ((next_param = find_next(command, "param", &param_index))) 
+    {
+        if (!first_param) 
+        {
+            sb_puts(", ", sb);
+        } 
+        else 
+        {
+            first_param = false;
+        }
+
+        // Here we must extract the names of parameters and ignore their types.
+        XML_Token *name_tag = find_next(*next_param, "name", NULL);
+        write_inner_text(sb, *name_tag, -1);
+    }
+}
+
+void write_body(StringBuffer *sb, XML_Token command, size_t *command_index) 
+{
+    XML_Token *proto = find_next(command, "proto", NULL);
+    XML_Token return_type = proto->value.content.tokens[0];
+
+    // Function body
+    sb_puts("{\n    ", sb);
+
+    // If the command doesn't return anything, the wrapper also shouldn't return
+    // anything. This avoids a warning.
+    if (!XML_str_eq_cstr(return_type.value.text, "void ")) 
+    {
+        sb_puts("return ", sb); 
+    }
+
+    sb_putc('(', sb);
+
+    // Cast to appropriate function pointer.
+    sb_putc('(', sb);
+    write_as_function_ptr_type(sb, command);
+    sb_putc(')', sb);
+
+    // Lookup function pointer.
+    sb_puts("(lookup[", sb);
+    sb_printf(sb, "%d", (*command_index)++);
+    sb_puts("].proc)", sb);
+
+    sb_putc(')', sb);
+
+    // Finally provide the argumets.
+    sb_putc('(', sb);
+    write_parameter_names(sb, command);
+    sb_puts(");\n", sb);
+
+    sb_puts("}\n\n", sb);
 }
 
 void generate_command(GenerationContext *ctx, XML_Token command) 
@@ -190,20 +308,35 @@ void generate_command(GenerationContext *ctx, XML_Token command)
 
     size_t tag_index = 0;
     XML_Token *proto = find_next(command, "proto", &tag_index);
-    XML_Token return_type = proto->value.content.tokens[0];
     XML_Token *command_name = find_next(*proto, "name", NULL);
 
     write_prototype(commands, command);
-
-    sb_puts(")\n", commands);
-    sb_puts("{\n", commands);
-    sb_puts("    // TODO\n", commands);
-    sb_puts("}\n", commands);
+    sb_putc('\n', commands);
+    write_body(commands, command, &ctx->command_index);
 
     // Append entry to command lookup
     sb_puts("    { NULL, \"", command_lookup);
-    write_inner_text(command_lookup, *command_name); 
+    write_inner_text(command_lookup, *command_name, -1); 
     sb_puts("\" },\n", command_lookup);
+}
+
+void generate_command_define(GenerationContext *ctx, XML_Token command) 
+{
+    StringBuffer *defines = &ctx->command_defines;
+    XML_Token *proto = find_next(command, "proto", NULL);
+    XML_Token *command_name = find_next(*proto, "name", NULL);
+
+    sb_puts("#define ", defines);
+    write_inner_text(defines, *command_name, -1);
+    sb_putc('(', defines);
+    write_parameter_names(defines, command);
+    sb_puts(") ", defines);
+
+    sb_puts(PREFIX, defines);
+    write_inner_text(defines, *command_name, -1);
+    sb_putc('(', defines);
+    write_parameter_names(defines, command);
+    sb_puts(")\n", defines);
 }
 
 void generate_commands(GenerationContext *ctx, XML_Token *commands) 
@@ -225,6 +358,7 @@ void generate_commands(GenerationContext *ctx, XML_Token *commands)
             continue;
         }
         generate_command(ctx, token);
+        generate_command_define(ctx, token);
     }
 
     // Finish up command lookup.

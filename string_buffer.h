@@ -11,7 +11,9 @@ typedef struct {
 
 StringBuffer sb_new_buffer(void);
 void sb_free(StringBuffer sb);
+
 void sb_putc(int c, StringBuffer *sb);
 void sb_puts(const char *str, StringBuffer *sb);
+void sb_printf(StringBuffer *str, const char *fmt, ...);
 
 #endif
