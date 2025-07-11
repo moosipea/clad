@@ -1,5 +1,3 @@
-CC := gcc
-
 CFLAGS := -Wall -Wextra -pedantic -MMD -MP
 BUILD_TYPE := DEBUG
 
@@ -10,7 +8,7 @@ else ifeq ($(BUILD_TYPE),RELEASE)
 endif
 
 BUILD_DIR := build
-BINARY_NAME := $(BUILD_DIR)/xml
+BINARY_NAME := $(BUILD_DIR)/clad
 SOURCES := $(wildcard *.c)
 OBJECTS := $(patsubst %.c,$(BUILD_DIR)/%.o,$(SOURCES))
 DEPENDS := $(patsubst %.c,$(BUILD_DIR)/%.d,$(SOURCES))

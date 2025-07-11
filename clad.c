@@ -32,7 +32,8 @@ typedef enum {
 #undef X
 } GLVersion;
 
-GLVersion gl_version_from_sv(XML_StringView sv) {
+static GLVersion gl_version_from_sv(XML_StringView sv) 
+{
 #define X(version) if (XML_str_eq_cstr(sv, #version)) return version;
     GL_VERSIONS
 #undef X
@@ -46,7 +47,8 @@ typedef enum {
     GL_API_GLSC2,
 } GLAPIType;
 
-GLAPIType gl_api_from_sv(XML_StringView sv) {
+static GLAPIType gl_api_from_sv(XML_StringView sv) 
+{
     if (XML_str_eq_cstr(sv, "gl")) return GL_API_GL;
     if (XML_str_eq_cstr(sv, "gles1")) return GL_API_GLES1;
     if (XML_str_eq_cstr(sv, "gles2")) return GL_API_GLES2;
@@ -59,14 +61,14 @@ typedef enum {
     GL_COMPATIBILITY,
 } GLProfile;
 
-GLProfile gl_profile_from_sv(XML_StringView sv) {
+static GLProfile gl_profile_from_sv(XML_StringView sv) 
+{
     if (XML_str_eq_cstr(sv, "core")) return GL_CORE;
     if (XML_str_eq_cstr(sv, "compatibility")) return GL_COMPATIBILITY;
     return -1;
 }
 
 typedef enum {
-    DEF_TYPE = 0,
     DEF_ENUM,
     DEF_CMD,
 } DefinitionType;
@@ -79,7 +81,7 @@ typedef struct {
     size_t capacity;
 } RequirementList;
 
-RequirementList rl_init(void)
+static RequirementList rl_init(void)
 {
     RequirementList rl = {0};
     rl.capacity = 32;
@@ -89,7 +91,7 @@ RequirementList rl_init(void)
     return rl;
 }
 
-void rl_add(RequirementList *rl, DefinitionType type, XML_StringView name, bool required)
+static void rl_add(RequirementList *rl, DefinitionType type, XML_StringView name, bool required)
 {
     // First check whether the feature is in the list.
     for (size_t i = 0; i < rl->length; i++) 
@@ -115,20 +117,7 @@ void rl_add(RequirementList *rl, DefinitionType type, XML_StringView name, bool 
     rl->length++;
 }
 
-bool rl_is_required(RequirementList rl, XML_StringView sv)
-{
-    for (size_t i = 0; i < rl.length; i++) 
-    {
-        if (XML_str_eq(rl.names[i], sv)) 
-        {
-            return rl.required[i];
-        } 
-    }
-
-    return false;
-}
-
-void rl_free(RequirementList rl)
+static void rl_free(RequirementList rl)
 {
     free(rl.types);
     free(rl.names);
@@ -149,7 +138,7 @@ typedef struct {
     StringBuffer command_defines;
 } GenerationContext;
 
-GenerationContext init_context(GLAPIType api, GLProfile profile, GLVersion version) 
+static GenerationContext init_context(GLAPIType api, GLProfile profile, GLVersion version) 
 {
     GenerationContext ctx = {0};
     ctx.api = api;
@@ -164,7 +153,7 @@ GenerationContext init_context(GLAPIType api, GLProfile profile, GLVersion versi
     return ctx;
 }
 
-void free_context(GenerationContext ctx)
+static void free_context(GenerationContext ctx)
 {
     sb_free(ctx.types);
     sb_free(ctx.enums);
@@ -174,7 +163,7 @@ void free_context(GenerationContext ctx)
     rl_free(ctx.requirements);
 }
 
-XML_Token *find_next(XML_Token parent, const char *tag, size_t *index)
+static XML_Token *find_next(XML_Token parent, const char *tag, size_t *index)
 {
     size_t local_index = 0;
 
@@ -194,7 +183,7 @@ XML_Token *find_next(XML_Token parent, const char *tag, size_t *index)
     return NULL;
 }
 
-bool sv_starts_with(XML_StringView str, const char *with) 
+static bool sv_starts_with(XML_StringView str, const char *with) 
 {
     for (size_t i = 0; i < str.length; i++) 
     {
@@ -211,7 +200,7 @@ bool sv_starts_with(XML_StringView str, const char *with)
     return true;
 }
 
-void put_xml_string_view(StringBuffer *file, XML_StringView str) 
+static void put_xml_string_view(StringBuffer *file, XML_StringView str) 
 {
     size_t i = 0;
     while (i < str.length) 
@@ -260,7 +249,7 @@ void put_xml_string_view(StringBuffer *file, XML_StringView str)
     }
 }
 
-void write_inner_text(StringBuffer *buffer, XML_Token token, int count)
+static void write_inner_text(StringBuffer *buffer, XML_Token token, int count)
 {
     switch (token.type) 
     {
@@ -279,22 +268,15 @@ void write_inner_text(StringBuffer *buffer, XML_Token token, int count)
     }
 }
 
-void generate_types(GenerationContext *ctx, XML_Token *types)
+static void generate_types(GenerationContext *ctx, XML_Token root)
 {
+    XML_Token *types = find_next(root, "types", NULL);
+    assert(types);
+
     for (size_t i = 0; i < types->value.content.length; i++) 
     {
         XML_Token token = types->value.content.tokens[i];
         if (token.type == XML_TOKEN_TEXT || !XML_str_eq_cstr(token.value.content.tag.name, "type")) 
-        {
-            continue; 
-        }
-
-        XML_Token *name = find_next(token, "name", NULL);
-        if (!name)
-        {
-            fprintf(stderr, "Generation error: couldn't find <name>!\n");
-        }
-        else if (!rl_is_required(ctx->requirements, name->value.text))
         {
             continue; 
         }
@@ -304,7 +286,7 @@ void generate_types(GenerationContext *ctx, XML_Token *types)
     }
 }
 
-void write_prototype(StringBuffer *sb, XML_Token command) 
+static void write_prototype(StringBuffer *sb, XML_Token command) 
 {
     size_t tag_index = 0;
     // TODO: assert proto != NULL
@@ -346,7 +328,7 @@ void write_prototype(StringBuffer *sb, XML_Token command)
     sb_puts(")", sb);
 }
 
-void write_as_function_ptr_type(StringBuffer *sb, XML_Token command) 
+static void write_as_function_ptr_type(StringBuffer *sb, XML_Token command) 
 {
     size_t tag_index = 0;
     XML_Token *proto = find_next(command, "proto", &tag_index);
@@ -393,7 +375,7 @@ void write_as_function_ptr_type(StringBuffer *sb, XML_Token command)
     sb_putc(')', sb);
 }
 
-void write_parameter_names(StringBuffer *sb, XML_Token command) 
+static void write_parameter_names(StringBuffer *sb, XML_Token command) 
 {
     size_t param_index = 0;
     XML_Token *next_param = NULL;
@@ -416,7 +398,7 @@ void write_parameter_names(StringBuffer *sb, XML_Token command)
     }
 }
 
-void write_body(StringBuffer *sb, XML_Token command, size_t *command_index) 
+static void write_body(StringBuffer *sb, XML_Token command, size_t *command_index) 
 {
     XML_Token *proto = find_next(command, "proto", NULL);
     XML_Token return_type = proto->value.content.tokens[0];
@@ -453,7 +435,7 @@ void write_body(StringBuffer *sb, XML_Token command, size_t *command_index)
     sb_puts("}\n\n", sb);
 }
 
-void generate_command_wrapper(GenerationContext *ctx, XML_Token command) 
+static void generate_command_wrapper(GenerationContext *ctx, XML_Token command) 
 {
     StringBuffer *command_lookup = &ctx->command_lookup;
     StringBuffer *commands = &ctx->commands;
@@ -472,7 +454,7 @@ void generate_command_wrapper(GenerationContext *ctx, XML_Token command)
     sb_puts("\" },\n", command_lookup);
 }
 
-void generate_command_define(GenerationContext *ctx, XML_Token command) 
+static void generate_command_define(GenerationContext *ctx, XML_Token command) 
 {
     StringBuffer *defines = &ctx->command_defines;
     XML_Token *proto = find_next(command, "proto", NULL);
@@ -480,18 +462,13 @@ void generate_command_define(GenerationContext *ctx, XML_Token command)
 
     sb_puts("#define ", defines);
     write_inner_text(defines, *command_name, -1);
-    sb_putc('(', defines);
-    write_parameter_names(defines, command);
-    sb_puts(") ", defines);
-
+    sb_putc(' ', defines);
     sb_puts(PREFIX, defines);
     write_inner_text(defines, *command_name, -1);
-    sb_putc('(', defines);
-    write_parameter_names(defines, command);
-    sb_puts(")\n", defines);
+    sb_putc('\n', defines);
 }
 
-XML_StringView get_command_name(XML_Token command)
+static XML_StringView get_command_name(XML_Token command)
 {
     XML_Token *proto = find_next(command, "proto", NULL);
     assert(proto);
@@ -519,7 +496,7 @@ void generate_command(GenerationContext *ctx, XML_Token commands, XML_StringView
     }
 }
     
-void write_header(GenerationContext *ctx)
+static void write_header(GenerationContext *ctx)
 {
     sb_puts("typedef struct {\n", &ctx->command_lookup);
     sb_puts("    void (*proc)(void);\n", &ctx->command_lookup);
@@ -528,39 +505,12 @@ void write_header(GenerationContext *ctx)
     sb_puts("static Proc lookup[] = {\n", &ctx->command_lookup);
 }
 
-void write_footer(GenerationContext *ctx)
+static void write_footer(GenerationContext *ctx)
 {
     sb_puts("};\n", &ctx->command_lookup);
 }
 
-void generate_commands(GenerationContext *ctx, XML_Token *commands) 
-{
-    // Command lookup header
-    write_header(ctx);
-
-    for (size_t i = 0; i < commands->value.content.length; i++) 
-    {
-        XML_Token token = commands->value.content.tokens[i];
-        if (token.type == XML_TOKEN_TEXT || !XML_str_eq_cstr(token.value.content.tag.name, "command")) 
-        {
-            continue;
-        }
-
-        XML_Token *proto = find_next(token, "proto", NULL);
-        XML_Token *name = find_next(*proto, "name", NULL);
-
-        if (!rl_is_required(ctx->requirements, name->value.text))
-            continue; 
-
-        generate_command_wrapper(ctx, token);
-        generate_command_define(ctx, token);
-    }
-
-    // Finish up command lookup.
-    write_footer(ctx);
-}
-
-bool is_version_leq(XML_Token feature, GLAPIType expected_api, GLVersion max_version) 
+static bool is_version_leq(XML_Token feature, GLAPIType expected_api, GLVersion max_version) 
 {
     XML_StringView api;
     if (!XML_get_attribute(feature, "api", &api))
@@ -585,7 +535,7 @@ bool is_version_leq(XML_Token feature, GLAPIType expected_api, GLVersion max_ver
     return true;
 }
                 
-void register_require(GenerationContext *ctx, XML_Token parent, bool require) 
+static void register_require(GenerationContext *ctx, XML_Token parent, bool require) 
 {
     for (size_t i = 0; i < parent.value.content.length; i++) 
     {
@@ -599,17 +549,12 @@ void register_require(GenerationContext *ctx, XML_Token parent, bool require)
         XML_StringView def_tag_name = def.value.content.tag.name;
         DefinitionType def_type; 
 
-        if (XML_str_eq_cstr(def_tag_name, "type")) 
-            def_type = DEF_TYPE;
-        else if (XML_str_eq_cstr(def_tag_name, "enum")) 
+        if (XML_str_eq_cstr(def_tag_name, "enum")) 
             def_type = DEF_ENUM;
         else if (XML_str_eq_cstr(def_tag_name, "command")) 
             def_type = DEF_CMD;
         else 
-        {
-            fprintf(stderr, "Generation error: unexpected tag: %.*s!\n", (int)def_tag_name.length, def_tag_name.start);
             continue;
-        }
 
         XML_StringView name;
         if (!XML_get_attribute(def, "name", &name)) 
@@ -623,7 +568,7 @@ void register_require(GenerationContext *ctx, XML_Token parent, bool require)
 }
 
 // TODO: report success or failure!
-void gather_featureset(GenerationContext *ctx, XML_Token root) 
+static void gather_featureset(GenerationContext *ctx, XML_Token root) 
 {
     size_t version_tag_index = 0;
     for (GLVersion version = GL_VERSION_1_0; version <= ctx->version; version++) 
@@ -671,7 +616,7 @@ void gather_featureset(GenerationContext *ctx, XML_Token root)
     }
 }
 
-void write_output(FILE *file, GenerationContext ctx)
+static void write_output(FILE *file, GenerationContext ctx)
 {
     fputs("/* SECTION: types */\n\n", file);
     fwrite(ctx.types.ptr, 1, ctx.types.length, file);
@@ -689,17 +634,13 @@ void write_output(FILE *file, GenerationContext ctx)
     fwrite(ctx.command_defines.ptr, 1, ctx.command_defines.length, file);
 }
 
-void generate(FILE *file, XML_Token root, GLAPIType api, GLProfile profile, GLVersion version) 
+static void generate(FILE *file, XML_Token root, GLAPIType api, GLProfile profile, GLVersion version) 
 {
-    if (root.type != XML_TOKEN_NODE) 
-    {
-        fprintf(stderr, "Generator error: expected node, got text!\n");
-        return;
-    }
+    assert(root.type == XML_TOKEN_NODE);
 
     GenerationContext ctx = init_context(api, profile, version);
+    generate_types(&ctx, root);
     gather_featureset(&ctx, root);
-
     write_header(&ctx);
 
     XML_Token *commands = find_next(root, "commands", NULL);
@@ -714,8 +655,6 @@ void generate(FILE *file, XML_Token root, GLAPIType api, GLProfile profile, GLVe
 
         switch (ctx.requirements.types[i]) 
         {
-            case DEF_TYPE:
-                break;
             case DEF_ENUM:
                 break;
             case DEF_CMD:
@@ -723,13 +662,6 @@ void generate(FILE *file, XML_Token root, GLAPIType api, GLProfile profile, GLVe
                 break;
         }
     }
-
-    // size_t section_index = 0;
-    // XML_Token *types_section = find_next(root, "types", &section_index);
-    // XML_Token *commands_section = find_next(root, "commands", &section_index);
-
-    // generate_types(&ctx, types_section);
-    // generate_commands(&ctx, commands_section);
 
     write_footer(&ctx);
     write_output(file, ctx);

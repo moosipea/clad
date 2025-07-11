@@ -6,6 +6,4 @@
 - [x] String buffer
 - [ ] Spam asserts everywhere
 - [x] Deal with <remove> tags
-- [ ] Account for `requirements` when processing commands and such
-- [ ] Get alternate name from "name" attributes
-- [ ] Deal with "requires" attributes
+- [x] Account for `requirements` when processing commands and such
