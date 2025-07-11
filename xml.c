@@ -442,7 +442,7 @@ bool XML_get_attribute(XML_Token token, const char *property, XML_StringView *ou
 {
     if (token.type != XML_TOKEN_NODE) 
     {
-        fprintf(stderr, "%s: expected a node, got text!\n", __FUNCTION__);
+        fprintf(stderr, "XML_get_attribute: expected a node, got text!\n");
         return false;
     }
     for (size_t i = 0; i < token.value.content.tag.attribs.length; i++) 

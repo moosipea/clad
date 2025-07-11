@@ -1,67 +1,56 @@
 #include "xml.h"
 #include "string_buffer.h"
+#include <assert.h>
 #include <stdlib.h>
 
 #define PREFIX "clad_"
 
+#define GL_VERSIONS \
+    X(GL_VERSION_1_0) \
+    X(GL_VERSION_1_1) \
+    X(GL_VERSION_1_2) \
+    X(GL_VERSION_1_3) \
+    X(GL_VERSION_1_4) \
+    X(GL_VERSION_1_5) \
+    X(GL_VERSION_2_0) \
+    X(GL_VERSION_2_1) \
+    X(GL_VERSION_3_0) \
+    X(GL_VERSION_3_1) \
+    X(GL_VERSION_3_2) \
+    X(GL_VERSION_3_3) \
+    X(GL_VERSION_4_0) \
+    X(GL_VERSION_4_1) \
+    X(GL_VERSION_4_2) \
+    X(GL_VERSION_4_3) \
+    X(GL_VERSION_4_4) \
+    X(GL_VERSION_4_5) \
+    X(GL_VERSION_4_6)
+
 typedef enum {
-    GL_VERSION_1_0 = 0,
-    GL_VERSION_1_1,
-    GL_VERSION_1_2,
-    GL_VERSION_1_3,
-    GL_VERSION_1_4,
-    GL_VERSION_1_5,
-    GL_VERSION_2_0,
-    GL_VERSION_2_1,
-    GL_VERSION_3_0,
-    GL_VERSION_3_1,
-    GL_VERSION_3_2,
-    GL_VERSION_3_3,
-    GL_VERSION_4_0,
-    GL_VERSION_4_1,
-    GL_VERSION_4_2,
-    GL_VERSION_4_3,
-    GL_VERSION_4_4,
-    GL_VERSION_4_5,
-    GL_VERSION_4_6,
+#define X(version) version,
+    GL_VERSIONS
+#undef X
 } GLVersion;
 
 GLVersion gl_version_from_sv(XML_StringView sv) {
-    // Yes, I could use X macros here, but I don't want to.
-    if (XML_str_eq_cstr(sv, "GL_VERSION_1_0")) return GL_VERSION_1_0;
-    if (XML_str_eq_cstr(sv, "GL_VERSION_1_1")) return GL_VERSION_1_1;
-    if (XML_str_eq_cstr(sv, "GL_VERSION_1_2")) return GL_VERSION_1_2;
-    if (XML_str_eq_cstr(sv, "GL_VERSION_1_3")) return GL_VERSION_1_3;
-    if (XML_str_eq_cstr(sv, "GL_VERSION_1_4")) return GL_VERSION_1_4;
-    if (XML_str_eq_cstr(sv, "GL_VERSION_1_5")) return GL_VERSION_1_5;
-    if (XML_str_eq_cstr(sv, "GL_VERSION_2_0")) return GL_VERSION_2_0;
-    if (XML_str_eq_cstr(sv, "GL_VERSION_2_1")) return GL_VERSION_2_1;
-    if (XML_str_eq_cstr(sv, "GL_VERSION_3_0")) return GL_VERSION_3_0;
-    if (XML_str_eq_cstr(sv, "GL_VERSION_3_1")) return GL_VERSION_3_1;
-    if (XML_str_eq_cstr(sv, "GL_VERSION_3_2")) return GL_VERSION_3_2;
-    if (XML_str_eq_cstr(sv, "GL_VERSION_3_3")) return GL_VERSION_3_3;
-    if (XML_str_eq_cstr(sv, "GL_VERSION_4_0")) return GL_VERSION_4_0;
-    if (XML_str_eq_cstr(sv, "GL_VERSION_4_1")) return GL_VERSION_4_1;
-    if (XML_str_eq_cstr(sv, "GL_VERSION_4_2")) return GL_VERSION_4_2;
-    if (XML_str_eq_cstr(sv, "GL_VERSION_4_3")) return GL_VERSION_4_3;
-    if (XML_str_eq_cstr(sv, "GL_VERSION_4_4")) return GL_VERSION_4_4;
-    if (XML_str_eq_cstr(sv, "GL_VERSION_4_5")) return GL_VERSION_4_5;
-    if (XML_str_eq_cstr(sv, "GL_VERSION_4_6")) return GL_VERSION_4_6;
+#define X(version) if (XML_str_eq_cstr(sv, #version)) return version;
+    GL_VERSIONS
+#undef X
     return -1;
 }
 
 typedef enum {
-    GL_API_GL = 0,
+    GL_API_GL,
     GL_API_GLES1,
     GL_API_GLES2,
     GL_API_GLSC2,
 } GLAPIType;
 
 GLAPIType gl_api_from_sv(XML_StringView sv) {
-    if (XML_str_eq_cstr(sv, "GL_API_GL")) return GL_API_GL;
-    if (XML_str_eq_cstr(sv, "GL_API_GLES1")) return GL_API_GLES1;
-    if (XML_str_eq_cstr(sv, "GL_API_GLES2")) return GL_API_GLES2;
-    if (XML_str_eq_cstr(sv, "GL_API_GLSC2")) return GL_API_GLSC2;
+    if (XML_str_eq_cstr(sv, "gl")) return GL_API_GL;
+    if (XML_str_eq_cstr(sv, "gles1")) return GL_API_GLES1;
+    if (XML_str_eq_cstr(sv, "gles2")) return GL_API_GLES2;
+    if (XML_str_eq_cstr(sv, "glsc2")) return GL_API_GLSC2;
     return -1;
 }
 
@@ -71,8 +60,8 @@ typedef enum {
 } GLProfile;
 
 GLProfile gl_profile_from_sv(XML_StringView sv) {
-    if (XML_str_eq_cstr(sv, "GL_CORE")) return GL_CORE;
-    if (XML_str_eq_cstr(sv, "GL_COMPATIBILITY")) return GL_COMPATIBILITY;
+    if (XML_str_eq_cstr(sv, "core")) return GL_CORE;
+    if (XML_str_eq_cstr(sv, "compatibility")) return GL_COMPATIBILITY;
     return -1;
 }
 
@@ -119,10 +108,24 @@ void rl_add(RequirementList *rl, DefinitionType type, XML_StringView name, bool 
         rl->names = realloc(rl->names, rl->capacity * sizeof(*rl->names));
         rl->required = realloc(rl->required, rl->capacity * sizeof(*rl->required));
     }
+
     rl->types[rl->length] = type;
     rl->names[rl->length] = name;
     rl->required[rl->length] = required;
     rl->length++;
+}
+
+bool rl_is_required(RequirementList rl, XML_StringView sv)
+{
+    for (size_t i = 0; i < rl.length; i++) 
+    {
+        if (XML_str_eq(rl.names[i], sv)) 
+        {
+            return rl.required[i];
+        } 
+    }
+
+    return false;
 }
 
 void rl_free(RequirementList rl)
@@ -285,6 +288,17 @@ void generate_types(GenerationContext *ctx, XML_Token *types)
         {
             continue; 
         }
+
+        XML_Token *name = find_next(token, "name", NULL);
+        if (!name)
+        {
+            fprintf(stderr, "Generation error: couldn't find <name>!\n");
+        }
+        else if (!rl_is_required(ctx->requirements, name->value.text))
+        {
+            continue; 
+        }
+
         write_inner_text(&ctx->types, token, -1);
         sb_putc('\n', &ctx->types);
     }
@@ -483,8 +497,7 @@ void generate_commands(GenerationContext *ctx, XML_Token *commands)
     sb_puts("typedef struct {\n", &ctx->command_lookup);
     sb_puts("    void (*proc)(void);\n", &ctx->command_lookup);
     sb_puts("    const char *name;\n", &ctx->command_lookup);
-    sb_puts("} Proc;\n", &ctx->command_lookup);
-    sb_putc('\n', &ctx->command_lookup);
+    sb_puts("} Proc;\n\n", &ctx->command_lookup);
 
     sb_puts("static Proc lookup[] = {\n", &ctx->command_lookup);
 
@@ -495,6 +508,13 @@ void generate_commands(GenerationContext *ctx, XML_Token *commands)
         {
             continue;
         }
+
+        XML_Token *proto = find_next(token, "proto", NULL);
+        XML_Token *name = find_next(*proto, "name", NULL);
+
+        if (!rl_is_required(ctx->requirements, name->value.text))
+            continue; 
+
         generate_command(ctx, token);
         generate_command_define(ctx, token);
     }
@@ -513,9 +533,7 @@ bool consider_version(XML_Token feature, GLAPIType expected_api, GLVersion max_v
     }
 
     if (gl_api_from_sv(api) != expected_api) 
-    {
         return false; 
-    }
 
     XML_StringView version;
     if (!XML_get_attribute(feature, "name", &version))
@@ -525,9 +543,7 @@ bool consider_version(XML_Token feature, GLAPIType expected_api, GLVersion max_v
     }
 
     if (gl_version_from_sv(version) > max_version) 
-    {
         return false; 
-    }
 
     return true;
 }
@@ -537,6 +553,12 @@ void register_require(GenerationContext *ctx, XML_Token parent, bool require)
     for (size_t i = 0; i < parent.value.content.length; i++) 
     {
         XML_Token def = parent.value.content.tokens[i];
+
+        if (def.type != XML_TOKEN_NODE) 
+        {
+            continue;
+        }
+
         XML_StringView def_tag_name = def.value.content.tag.name;
 
         DefinitionType def_type; 
@@ -564,42 +586,50 @@ void register_require(GenerationContext *ctx, XML_Token parent, bool require)
 }
 
 // TODO: report success or failure!
-void scan_features(GenerationContext *ctx, XML_Token root) 
+void gather_featureset(GenerationContext *ctx, XML_Token root) 
 {
     size_t version_tag_index = 0;
-    for (size_t version = GL_VERSION_1_0; version <= ctx->version; version++) 
+    for (GLVersion version = GL_VERSION_1_0; version <= ctx->version; version++) 
     {
         XML_Token *feature_tag = find_next(root, "feature", &version_tag_index); 
-        if (feature_tag == NULL) 
-        {
-            fprintf(stderr, "Generation error: failed to find <feature> tag!\n");
-            return;
-        }
+
+        // There are no more <feature> tags in the file.
+        if (!feature_tag)
+            break;
 
         if (!consider_version(*feature_tag, ctx->api, ctx->version))
             continue;
 
-        for (size_t i = 0; i < feature_tag->value.content.length; i++)
+        // This is a bit cursed, but if it works...
+        for (size_t r_index = 0;;)
         {
-            XML_Token require_or_remove = feature_tag->value.content.tokens[i]; 
+            bool require = true;
+            XML_Token *r = find_next(*feature_tag, "require", &r_index);
+            if (!r) 
+            {
+                r = find_next(*feature_tag, "remove", &r_index);
+                require = false;
+            }
+
+            // Neither <require> nor <remove> could be found, exit the loop.
+            if (!r)
+            {
+                break; 
+            }
 
             XML_StringView profile;
-            // If no profile is provided, then continue processing the tag
-            // regardless.
-            if (XML_get_attribute(require_or_remove, "profile", &profile)) 
+            if (XML_get_attribute(*r, "profile", &profile)) 
             {
                 // TODO: Check whether one profile is a subset of the other!
                 if (gl_profile_from_sv(profile) != ctx->profile) 
+                {
                     continue; 
+                }
             }
 
-            XML_StringView name = require_or_remove.value.content.tag.name;
-            if (XML_str_eq_cstr(name, "require")) 
-                register_require(ctx, require_or_remove, true); 
-            else if (XML_str_eq_cstr(name, "remove"))
-                register_require(ctx, require_or_remove, false); 
-            else 
-                continue;
+            // If no profile is provided, then continue processing the tag
+            // regardless.
+            register_require(ctx, *r, require);
         }
     }
 }
@@ -631,16 +661,23 @@ void generate(FILE *file, XML_Token root, GLAPIType api, GLProfile profile, GLVe
     }
 
     GenerationContext ctx = init_context(api, profile, version);
-    scan_features(&ctx, root);
+    gather_featureset(&ctx, root);
 
-    size_t section_index = 0;
-    XML_Token *types_section = find_next(root, "types", &section_index);
-    XML_Token *commands_section = find_next(root, "commands", &section_index);
+    for (size_t i = 0; i < ctx.requirements.length; i++) {
+        if (!ctx.requirements.required[i]) {
+            continue;
+        }
+        fprintf(stderr, "REQUIRE: %.*s\n", (int)ctx.requirements.names[i].length, ctx.requirements.names[i].start);
+    }
 
-    generate_types(&ctx, types_section);
-    generate_commands(&ctx, commands_section);
+    // size_t section_index = 0;
+    // XML_Token *types_section = find_next(root, "types", &section_index);
+    // XML_Token *commands_section = find_next(root, "commands", &section_index);
 
-    write_output(file, ctx);
+    // generate_types(&ctx, types_section);
+    // generate_commands(&ctx, commands_section);
+
+    // write_output(file, ctx);
     free_context(ctx);
 }
 
