@@ -118,7 +118,7 @@ static bool XML_starts_with_cstr(const char *str, const char *with)
     return true;
 }
 
-static size_t XML_strlen(const char *str) 
+size_t XML_strlen(const char *str) 
 {
     size_t length = 0;
     while (str[length] != '\0') 
