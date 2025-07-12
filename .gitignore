@@ -1,5 +1,6 @@
 .cache
 build*
+clad/
 compile_commands.json
 
 *.xml

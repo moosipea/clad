@@ -79,6 +79,16 @@ static GLProfile gl_profile_from_sv(XML_StringView sv)
     return GL_PROFILE_INVALID;
 }
 
+typedef struct {
+    const char *input_xml;
+    const char *output_header;
+    const char *output_source;
+    GLAPIType api;
+    GLProfile profile;
+    GLVersion version;
+    bool parsed_succesfully;
+} CladArguments;
+
 typedef enum {
     DEF_ENUM,
     DEF_CMD,
@@ -648,10 +658,32 @@ static void write_output_header(GenerationContext ctx)
     fputs("#endif\n", ctx.output_header);
 }
 
-static void write_output_source(GenerationContext ctx) 
+static const char *get_file(const char *path)
 {
-    // TODO: make source file include header
-    // TODO: ^pass header path for this!
+    size_t i = 0;
+    size_t last_slash = 0;
+
+    while (path[i] != '\0') {
+        if (path[i] == '/') 
+        {
+            last_slash = i; 
+        }
+        i++;
+    }
+
+    if (last_slash != 0) 
+    {
+        return &path[last_slash + 1];
+    }
+
+    return path;
+}
+
+static void write_output_source(GenerationContext ctx, const char *header_path) 
+{
+    const char *header_file = get_file(header_path);
+    fprintf(ctx.output_source, "#include \"%s\"\n", header_file);
+    fprintf(ctx.output_source, "#include <stdlib.h>\n\n");
     fwrite(ctx.command_lookup.ptr, 1, ctx.command_lookup.length, ctx.output_source);
     fwrite(ctx.commands_wrappers.ptr, 1, ctx.commands_wrappers.length, ctx.output_source);
 }
@@ -702,11 +734,11 @@ static void generate_enum(GenerationContext *ctx, XML_Token root, XML_StringView
     }
 }
 
-static void generate(XML_Token root, GLAPIType api, GLProfile profile, GLVersion version, FILE *output_header, FILE *output_source) 
+static void generate(XML_Token root, CladArguments args, FILE *output_header, FILE *output_source) 
 {
     assert(root.type == XML_TOKEN_NODE);
 
-    GenerationContext ctx = init_context(api, profile, version, output_header, output_source);
+    GenerationContext ctx = init_context(args.api, args.profile, args.version, output_header, output_source);
     generate_types(&ctx, root);
     gather_featureset(&ctx, root);
     write_header(&ctx);
@@ -734,7 +766,7 @@ static void generate(XML_Token root, GLAPIType api, GLProfile profile, GLVersion
 
     write_footer(&ctx);
     write_output_header(ctx);
-    write_output_source(ctx);
+    write_output_source(ctx, args.output_header);
     free_context(ctx);
 }
 
@@ -762,16 +794,6 @@ bool streq(const char *a, const char *b)
 
     return false;
 }
-
-typedef struct {
-    const char *input_xml;
-    const char *output_header;
-    const char *output_source;
-    GLAPIType api;
-    GLProfile profile;
-    GLVersion version;
-    bool parsed_succesfully;
-} CladArguments;
 
 static bool parse_kv(char ***argv, char **value, const char *current_arg, const char *key, const char *value_kind)
 {
@@ -811,67 +833,55 @@ static CladArguments parse_commandline_arguments(char **args)
     {
         if (parse_kv(&argv, &value, next_argument, "--in-xml", "file path")) 
         {
-            if (!value)
-                break;
+            if (!value) break;
             parsed_arguments.input_xml = value;    
             has_been_parsed |= 0x01;
         }
         if (parse_kv(&argv, &value, next_argument, "--out-header", "file path")) 
         {
-            if (!value)
-                break;
+            if (!value) break;
             parsed_arguments.output_header = value;    
             has_been_parsed |= 0x02;
         }
         else if (parse_kv(&argv, &value, next_argument, "--out-source", "file path"))
         {
-            if (!value)
-                break;
+            if (!value) break;
             parsed_arguments.output_source = value;
             has_been_parsed |= 0x04;
         }
         else if (parse_kv(&argv, &value, next_argument, "--api", "api"))
         {
-            if (!value) 
-                break;
-            
+            if (!value) break;
             GLAPIType api = gl_api_from_sv(sv_from_cstr(value));
             if (api == GL_API_INVALID)
             {
                 fprintf(stderr, "error: failed to parse API version: %s\n", value);
                 break;
             }
-
             parsed_arguments.api = api;
             has_been_parsed |= 0x08;
         }
         else if (parse_kv(&argv, &value, next_argument, "--profile", "profile"))
         {
-            if (!value)
-                break;
-
+            if (!value) break;
             GLProfile profile = gl_profile_from_sv(sv_from_cstr(value));
             if (profile == GL_PROFILE_INVALID)
             {
                 fprintf(stderr, "error: failed to parse profile: %s\n", value);
                 break;
             }
-
             parsed_arguments.profile = profile;
             has_been_parsed |= 0x10;
         }
         else if (parse_kv(&argv, &value, next_argument, "--version", "version"))
         {
-            if (!value)
-                break;
-
+            if (!value) break;
             GLVersion version = gl_version_from_sv_short(sv_from_cstr(value));
             if (version == GL_VERSION_INVALID)
             {
                 fprintf(stderr, "error: failed to parse version: %s\n", value);
                 break;
             }
-
             parsed_arguments.version = version;
             has_been_parsed |= 0x20;
         }
@@ -940,7 +950,7 @@ int main(int argc, char **argv)
 
         if (XML_parse_file(src, &root)) 
         {
-            generate(root, arguments.api, arguments.profile, arguments.version, output_header, output_source);
+            generate(root, arguments, output_header, output_source);
             XML_free(root);
         }
 
@@ -948,6 +958,7 @@ int main(int argc, char **argv)
     }
 
     ret = EXIT_SUCCESS;
+
 failure:
     try_to_close(output_header);
     try_to_close(output_source);
