@@ -831,6 +831,10 @@ static CladArguments parse_commandline_arguments(char **args)
 
     while ((next_argument = shift_arguments(&argv))) 
     {
+        if (streq(next_argument, "\\")) 
+        {
+            continue; 
+        }
         if (parse_kv(&argv, &value, next_argument, "--in-xml", "file path")) 
         {
             if (!value) break;

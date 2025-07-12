@@ -8,18 +8,38 @@ else ifeq ($(BUILD_TYPE),RELEASE)
 endif
 
 BUILD_DIR := build
-BINARY_NAME := $(BUILD_DIR)/clad
+CLAD_BINARY := $(BUILD_DIR)/clad
 SOURCES := $(wildcard src/*.c)
 OBJECTS := $(patsubst %.c,$(BUILD_DIR)/%.o,$(SOURCES))
 DEPENDS := $(patsubst %.c,$(BUILD_DIR)/%.d,$(SOURCES))
 
 ifeq ($(OS),Windows_NT)
-	BINARY_NAME := $(BINARY_NAME).exe
+	CLAD_BINARY := $(CLAD_BINARY).exe
 endif
 
-all: $(BINARY_NAME)
+GENERATED_DIR := generated
+GENERATED_HEADER_FILE := $(GENERATED_DIR)/clad.h
+GENERATED_SOURCE_FILE := $(GENERATED_DIR)/clad.c
 
-$(BINARY_NAME): $(OBJECTS)
+GL_API := gl
+GL_PROFILE := core
+GL_VERSION = 3.3
+
+all: $(GENERATED_HEADER_FILE)
+binary: $(CLAD_BINARY)
+
+$(GENERATED_HEADER_FILE): $(GENERATED_SOURCE_FILE)
+$(GENERATED_SOURCE_FILE): $(CLAD_BINARY)
+	@mkdir -p $(@D)
+	$(CLAD_BINARY) \
+	--in-xml ./files/gl.xml \
+	--out-header $(GENERATED_HEADER_FILE) \
+	--out-source $(GENERATED_SOURCE_FILE) \
+	--api $(GL_API) \
+	--profile $(GL_PROFILE) \
+	--version $(GL_VERSION)
+
+$(CLAD_BINARY): $(OBJECTS)
 	$(CC) $(LDFLAGS) -o $@ $^
 
 -include $(DEPENDS)
