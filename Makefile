@@ -9,7 +9,7 @@ endif
 
 BUILD_DIR := build
 BINARY_NAME := $(BUILD_DIR)/clad
-SOURCES := $(wildcard *.c)
+SOURCES := $(wildcard src/*.c)
 OBJECTS := $(patsubst %.c,$(BUILD_DIR)/%.o,$(SOURCES))
 DEPENDS := $(patsubst %.c,$(BUILD_DIR)/%.d,$(SOURCES))
 
