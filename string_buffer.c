@@ -58,3 +58,11 @@ void sb_printf(StringBuffer *sb, const char *fmt, ...)
     free(buffer);
     va_end(ap);
 }
+
+void sb_putsn(StringBuffer *sb, const char *str, size_t length) 
+{
+    for (size_t i = 0; i < length; i++) 
+    {
+        sb_putc(str[i], sb);
+    }
+}

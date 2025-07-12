@@ -634,6 +634,52 @@ static void write_output(FILE *file, GenerationContext ctx)
     fwrite(ctx.command_defines.ptr, 1, ctx.command_defines.length, file);
 }
 
+static XML_StringView get_enum_name(XML_Token _enum) 
+{
+    XML_StringView name;
+    bool found_name = XML_get_attribute(_enum, "name", &name);
+    assert(found_name);
+    return name;
+}
+
+static XML_StringView get_enum_value(XML_Token _enum)
+{
+    XML_StringView value;
+    bool found_value = XML_get_attribute(_enum, "value", &value);
+    assert(found_value);
+    return value;
+}
+
+static void generate_enum(GenerationContext *ctx, XML_Token root, XML_StringView name) 
+{
+    size_t enums_index = 0;
+    XML_Token *enums = NULL;
+
+    while ((enums = find_next(root, "enums", &enums_index))) 
+    {
+        size_t enum_index = 0;
+        XML_Token *_enum = NULL;
+
+        while ((_enum = find_next(*enums, "enum", &enum_index))) 
+        {
+            XML_StringView enum_name = get_enum_name(*_enum);
+
+            if (!XML_str_eq(enum_name, name)) 
+            {
+                continue; 
+            }
+
+            XML_StringView enum_value = get_enum_value(*_enum);
+
+            sb_puts("#define ", &ctx->enums);
+            sb_putsn(&ctx->enums, enum_name.start, enum_name.length);
+            sb_putc(' ', &ctx->enums);
+            sb_putsn(&ctx->enums, enum_value.start, enum_value.length);
+            sb_putc('\n', &ctx->enums);
+        }
+    }
+}
+
 static void generate(FILE *file, XML_Token root, GLAPIType api, GLProfile profile, GLVersion version) 
 {
     assert(root.type == XML_TOKEN_NODE);
@@ -656,6 +702,7 @@ static void generate(FILE *file, XML_Token root, GLAPIType api, GLProfile profil
         switch (ctx.requirements.types[i]) 
         {
             case DEF_ENUM:
+                generate_enum(&ctx, root, ctx.requirements.names[i]);
                 break;
             case DEF_CMD:
                 generate_command(&ctx, *commands, ctx.requirements.names[i]);
