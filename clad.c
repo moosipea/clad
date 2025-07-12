@@ -787,7 +787,8 @@ static bool parse_kv(char ***argv, char **value, const char *current_arg, const 
     return false;
 }
 
-static XML_StringView sv_from_cstr(const char *str) {
+static XML_StringView sv_from_cstr(const char *str) 
+{
     XML_StringView sv;
     sv.start = str;
     sv.length = XML_strlen(str);
