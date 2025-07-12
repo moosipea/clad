@@ -340,16 +340,22 @@ static void write_prototype(StringBuffer *sb, XML_Token command)
 
     while ((next_param = find_next(command, "param", &tag_index))) 
     {
-        if (!first_param) 
+        if (first_param) 
         {
-            sb_puts(", ", sb);
+            first_param = false;
         } 
         else 
         {
-            first_param = false;
+            sb_puts(", ", sb);
         }
 
         write_inner_text(sb, *next_param, -1);
+    }
+
+    // Function doesn't have any parameters
+    if (first_param) 
+    {
+        sb_puts("void", sb); 
     }
     
     sb_puts(")", sb);
@@ -397,6 +403,12 @@ static void write_as_function_ptr_type(StringBuffer *sb, XML_Token command)
         {
             sb->ptr[--sb->length] = '\0';
         }
+    }
+    
+    // Function doesn't have any parameters
+    if (first_param) 
+    {
+        sb_puts("void", sb); 
     }
 
     sb_putc(')', sb);
