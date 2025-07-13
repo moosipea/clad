@@ -534,8 +534,11 @@ void generate_command(GenerationContext *ctx, XML_Token commands, XML_StringView
     
 static void write_header(GenerationContext *ctx)
 {
+    sb_puts("typedef void (*CladProc)(void);\n", &ctx->command_prototypes);
+    sb_puts("typedef CladProc (CladProcAddrLoader)(const char *);\n\n", &ctx->command_prototypes);
+
     sb_puts("typedef struct {\n", &ctx->command_lookup);
-    sb_puts("    void (*proc)(void);\n", &ctx->command_lookup);
+    sb_puts("    CladProc proc;\n", &ctx->command_lookup);
     sb_puts("    const char *name;\n", &ctx->command_lookup);
     sb_puts("} Proc;\n\n", &ctx->command_lookup);
     sb_puts("static Proc lookup[] = {\n", &ctx->command_lookup);
@@ -543,8 +546,27 @@ static void write_header(GenerationContext *ctx)
 
 static void write_footer(GenerationContext *ctx)
 {
-    sb_puts("};\n", &ctx->command_lookup);
+    sb_puts("};\n\n", &ctx->command_lookup);
+
+    // Generate initialization function
+    sb_puts("int clad_init_gl(CladProcAddrLoader load_proc)\n", &ctx->command_lookup);
+    sb_puts("{\n", &ctx->command_lookup);
+    sb_puts("    for (size_t i = 0; i < sizeof(lookup) / sizeof(*lookup); i++)\n", &ctx->command_lookup);
+    sb_puts("    {\n", &ctx->command_lookup);
+    sb_puts("        lookup[i].proc = load_proc(lookup[i].name);\n", &ctx->command_lookup);
+    sb_puts("        if (lookup[i].proc == NULL)\n", &ctx->command_lookup);
+    sb_puts("        {\n", &ctx->command_lookup);
+    sb_puts("            return 0;\n", &ctx->command_lookup);
+    sb_puts("        }\n", &ctx->command_lookup);
+    sb_puts("    }\n", &ctx->command_lookup);
+    sb_puts("    return 1;\n", &ctx->command_lookup);
+    sb_puts("}\n\n", &ctx->command_lookup);
+
+    // Also generate it in the header
+    sb_puts("int clad_init_gl(CladProcAddrLoader load_proc);\n", &ctx->command_prototypes);
 }
+
+
 
 static bool is_version_leq(XML_Token feature, GLAPIType expected_api, GLVersion max_version) 
 {
@@ -657,11 +679,13 @@ static void write_output_header(GenerationContext ctx)
     fputs("#define CLAD_H\n", ctx.output_header);
 
     fwrite(ctx.types.ptr, 1, ctx.types.length, ctx.output_header);
+    fputc('\n', ctx.output_header);
     fwrite(ctx.enums.ptr, 1, ctx.enums.length, ctx.output_header);
+    fputc('\n', ctx.output_header);
     fwrite(ctx.command_defines.ptr, 1, ctx.command_defines.length, ctx.output_header);
-
-    // TODO: generate prototypes
+    fputc('\n', ctx.output_header);
     fwrite(ctx.command_prototypes.ptr, 1, ctx.command_prototypes.length, ctx.output_header);
+    fputc('\n', ctx.output_header);
 
     fputs("#endif\n", ctx.output_header);
 }
@@ -671,7 +695,8 @@ static const char *get_file(const char *path)
     size_t i = 0;
     size_t last_slash = 0;
 
-    while (path[i] != '\0') {
+    while (path[i] != '\0') 
+    {
         if (path[i] == '/') 
         {
             last_slash = i; 
@@ -792,7 +817,8 @@ bool streq(const char *a, const char *b)
 {
     size_t i = 0;
 
-    while (a[i] == b[i]) {
+    while (a[i] == b[i]) 
+    {
         if (a[i] == '\0') 
         {
             return true; 
