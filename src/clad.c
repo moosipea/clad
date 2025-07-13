@@ -155,7 +155,7 @@ typedef struct {
     StringBuffer types;
     StringBuffer enums;
     StringBuffer command_lookup;
-    StringBuffer commands_wrappers;
+    StringBuffer command_wrappers;
     StringBuffer command_defines;
     StringBuffer command_prototypes;
 
@@ -173,8 +173,9 @@ static GenerationContext init_context(GLAPIType api, GLProfile profile, GLVersio
     ctx.types = sb_new_buffer();
     ctx.enums = sb_new_buffer();
     ctx.command_lookup = sb_new_buffer();
-    ctx.commands_wrappers = sb_new_buffer();
+    ctx.command_wrappers = sb_new_buffer();
     ctx.command_defines = sb_new_buffer();
+    ctx.command_prototypes = sb_new_buffer();
     ctx.output_header = output_header;
     ctx.output_source = output_source;
     return ctx;
@@ -185,8 +186,9 @@ static void free_context(GenerationContext ctx)
     sb_free(ctx.types);
     sb_free(ctx.enums);
     sb_free(ctx.command_lookup);
-    sb_free(ctx.commands_wrappers);
+    sb_free(ctx.command_wrappers);
     sb_free(ctx.command_defines);
+    sb_free(ctx.command_prototypes);
     rl_free(ctx.requirements);
 }
 
@@ -316,19 +318,15 @@ static void generate_types(GenerationContext *ctx, XML_Token root)
 static void write_prototype(StringBuffer *sb, XML_Token command) 
 {
     size_t tag_index = 0;
-    // TODO: assert proto != NULL
     XML_Token *proto = find_next(command, "proto", &tag_index);
-    XML_Token return_type = proto->value.content.tokens[0];
+    assert(proto);
     XML_Token *command_name = find_next(*proto, "name", NULL);
+    assert(command_name);
 
-    write_inner_text(sb, return_type, -1);
+    // Write return type
+    write_inner_text(sb, *proto, proto->value.content.length - 1);
 
-    // If the return type is `void`, we want to avoid adding an extra space but
-    // otherwise it's required.
-    if (return_type.type != XML_TOKEN_TEXT) 
-    {
-        sb_putc(' ', sb);
-    }
+    // Write function name
     sb_puts(PREFIX, sb);
     write_inner_text(sb, *command_name, -1);
 
@@ -365,16 +363,10 @@ static void write_as_function_ptr_type(StringBuffer *sb, XML_Token command)
 {
     size_t tag_index = 0;
     XML_Token *proto = find_next(command, "proto", &tag_index);
-    XML_Token return_type = proto->value.content.tokens[0];
+    assert(proto);
 
-    write_inner_text(sb, return_type, -1);
-
-    // If the return type is `void`, we want to avoid adding an extra space but
-    // otherwise it's required.
-    if (return_type.type != XML_TOKEN_TEXT) 
-    {
-        sb_putc(' ', sb);
-    }
+    // Write return type.
+    write_inner_text(sb, *proto, proto->value.content.length - 1);
 
     sb_puts("(*)", sb);
     sb_putc('(', sb);
@@ -476,36 +468,40 @@ static void write_body(StringBuffer *sb, XML_Token command, size_t *command_inde
 
 static void generate_command_wrapper(GenerationContext *ctx, XML_Token command) 
 {
-    StringBuffer *command_lookup = &ctx->command_lookup;
-    StringBuffer *commands = &ctx->commands_wrappers;
-
     size_t tag_index = 0;
     XML_Token *proto = find_next(command, "proto", &tag_index);
     XML_Token *command_name = find_next(*proto, "name", NULL);
 
-    write_prototype(commands, command);
-    sb_putc('\n', commands);
-    write_body(commands, command, &ctx->command_index);
+    write_prototype(&ctx->command_wrappers, command);
+    sb_putc('\n', &ctx->command_wrappers);
+    write_body(&ctx->command_wrappers, command, &ctx->command_index);
 
     // Append entry to command lookup
-    sb_puts("    { NULL, \"", command_lookup);
-    write_inner_text(command_lookup, *command_name, -1); 
-    sb_puts("\" },\n", command_lookup);
+    sb_puts("    { NULL, \"", &ctx->command_lookup);
+    write_inner_text(&ctx->command_lookup, *command_name, -1); 
+    sb_puts("\" },\n", &ctx->command_lookup);
+}
+
+
+static void generate_command_declaration(GenerationContext *ctx, XML_Token command) 
+{
+    write_prototype(&ctx->command_prototypes, command);
+    sb_puts(";\n", &ctx->command_prototypes);
 }
 
 static void generate_command_define(GenerationContext *ctx, XML_Token command) 
 {
-    StringBuffer *defines = &ctx->command_defines;
     XML_Token *proto = find_next(command, "proto", NULL);
     XML_Token *command_name = find_next(*proto, "name", NULL);
 
-    sb_puts("#define ", defines);
-    write_inner_text(defines, *command_name, -1);
-    sb_putc(' ', defines);
-    sb_puts(PREFIX, defines);
-    write_inner_text(defines, *command_name, -1);
-    sb_putc('\n', defines);
+    sb_puts("#define ", &ctx->command_defines);
+    write_inner_text(&ctx->command_defines, *command_name, -1);
+    sb_putc(' ', &ctx->command_defines);
+    sb_puts(PREFIX, &ctx->command_defines);
+    write_inner_text(&ctx->command_defines, *command_name, -1);
+    sb_putc('\n', &ctx->command_defines);
 }
+
 
 static XML_StringView get_command_name(XML_Token command)
 {
@@ -529,6 +525,7 @@ void generate_command(GenerationContext *ctx, XML_Token commands, XML_StringView
         if (XML_str_eq(get_command_name(*command), name)) 
         {
             generate_command_wrapper(ctx, *command);
+            generate_command_declaration(ctx, *command);
             generate_command_define(ctx, *command);
             return;
         }
@@ -606,7 +603,6 @@ static void register_require(GenerationContext *ctx, XML_Token parent, bool requ
     }
 }
 
-// TODO: report success or failure!
 static void gather_featureset(GenerationContext *ctx, XML_Token root) 
 {
     size_t version_tag_index = 0;
@@ -697,7 +693,7 @@ static void write_output_source(GenerationContext ctx, const char *header_path)
     fprintf(ctx.output_source, "#include \"%s\"\n", header_file);
     fprintf(ctx.output_source, "#include <stdlib.h>\n\n");
     fwrite(ctx.command_lookup.ptr, 1, ctx.command_lookup.length, ctx.output_source);
-    fwrite(ctx.commands_wrappers.ptr, 1, ctx.commands_wrappers.length, ctx.output_source);
+    fwrite(ctx.command_wrappers.ptr, 1, ctx.command_wrappers.length, ctx.output_source);
 }
 
 static XML_StringView get_enum_name(XML_Token _enum) 
