@@ -2,6 +2,3 @@
 build*/
 generated/
 compile_commands.json
-
-*.xml
-*.txt
