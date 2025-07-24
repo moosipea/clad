@@ -1,5 +1,6 @@
-includedir=generated/include
-libdir=generated/lib
+prefix=${pcfiledir}
+includedir=${prefix}/generated/include
+libdir=${prefix}/generated/lib
 
 Name: clad
 Description: Generated OpenGL header
