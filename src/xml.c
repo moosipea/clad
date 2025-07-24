@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <setjmp.h>
+#include <assert.h>
 
 #ifdef _WIN32
 #define _CRT_SECURE_NO_WARNINGS
@@ -365,13 +366,16 @@ char *XML_read_file(const char *file_name)
         return NULL;
     }
 
-    long length;
+    size_t length;
     fseek(fp, 0, SEEK_END);
     length = ftell(fp);
     rewind(fp);
 
     char *input_buffer = malloc(length + 1);
-    fread(input_buffer, 1, length, fp);
+
+    size_t elements_read = fread(input_buffer, 1, length, fp);
+    assert(length == elements_read);
+
     input_buffer[length] = '\0';
     fclose(fp);
 

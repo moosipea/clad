@@ -42,23 +42,6 @@ void sb_puts(const char *str, StringBuffer *sb)
     }
 }
 
-void sb_printf(StringBuffer *sb, const char *fmt, ...) 
-{
-    va_list ap;
-    va_start(ap, fmt);
-
-    // TODO: This should operate on the string buffer directly as that would avoid an
-    // extra allocation here.
-    int size = vsnprintf(NULL, 0, fmt, ap);
-    char *buffer = malloc(size + 1);
-    vsnprintf(buffer, size + 1, fmt, ap);
-    
-    sb_puts(buffer, sb);
-
-    free(buffer);
-    va_end(ap);
-}
-
 void sb_putsn(StringBuffer *sb, const char *str, size_t length) 
 {
     for (size_t i = 0; i < length; i++) 

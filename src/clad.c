@@ -453,13 +453,17 @@ static void write_body(StringBuffer *sb, XML_Token command, size_t *command_inde
 
     // Lookup function pointer.
     sb_puts("(lookup[", sb);
-    sb_printf(sb, "%d", (*command_index)++);
+    // sb_printf(sb, "%d", (int)*command_index);
+    char index_buffer[64];
+    snprintf(index_buffer, sizeof(index_buffer), "%d", (int)*command_index);
+    (*command_index)++;
+    sb_puts(index_buffer, sb);
     sb_puts("].proc)", sb);
 
     sb_putc(')', sb);
 
     // Finally provide the argumets.
-    sb_putc('(', sb);
+    sb_putc('(', sb); 
     write_parameter_names(sb, command);
     sb_puts(");\n", sb);
 
