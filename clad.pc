@@ -1,0 +1,9 @@
+includedir=generated/include
+libdir=generated/lib
+
+Name: clad
+Description: Generated OpenGL header
+Version: 1.0.0
+Cflags: -I${includedir}
+Libs: -L${libdir} -lclad
+

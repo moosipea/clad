@@ -690,32 +690,9 @@ static void write_output_header(GenerationContext ctx)
     fputs("#endif\n", ctx.output_header);
 }
 
-static const char *get_file(const char *path)
+static void write_output_source(GenerationContext ctx) 
 {
-    size_t i = 0;
-    size_t last_slash = 0;
-
-    while (path[i] != '\0') 
-    {
-        if (path[i] == '/') 
-        {
-            last_slash = i; 
-        }
-        i++;
-    }
-
-    if (last_slash != 0) 
-    {
-        return &path[last_slash + 1];
-    }
-
-    return path;
-}
-
-static void write_output_source(GenerationContext ctx, const char *header_path) 
-{
-    const char *header_file = get_file(header_path);
-    fprintf(ctx.output_source, "#include \"%s\"\n", header_file);
+    fprintf(ctx.output_source, "#include <clad/gl.h>\n");
     fprintf(ctx.output_source, "#include <stdlib.h>\n\n");
     fwrite(ctx.command_lookup.ptr, 1, ctx.command_lookup.length, ctx.output_source);
     fwrite(ctx.command_wrappers.ptr, 1, ctx.command_wrappers.length, ctx.output_source);
@@ -799,7 +776,7 @@ static void generate(XML_Token root, CladArguments args, FILE *output_header, FI
 
     write_footer(&ctx);
     write_output_header(ctx);
-    write_output_source(ctx, args.output_header);
+    write_output_source(ctx);
     free_context(ctx);
 }
 

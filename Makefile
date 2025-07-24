@@ -18,27 +18,30 @@ ifeq ($(OS),Windows_NT)
 endif
 
 GENERATED_DIR := generated
-GENERATED_HEADER_FILE := $(GENERATED_DIR)/clad/gl.h
-GENERATED_SOURCE_FILE := $(GENERATED_DIR)/clad/gl.c
+GENERATED_HEADER_FILE := $(GENERATED_DIR)/include/clad/gl.h
+KHR_HEADER := $(GENERATED_DIR)/include/KHR/khrplatform.h
+GENERATED_SOURCE_FILE := $(GENERATED_DIR)/gl.c
 GENERATED_OBJECT_FILE := $(GENERATED_DIR)/clad.o
-GENERATED_LIB := $(GENERATED_DIR)/libclad.a
-KHR_HEADER := $(GENERATED_DIR)/KHR/khrplatform.h
+GENERATED_LIB := $(GENERATED_DIR)/lib/libclad.a
 
 GL_API := gl
 GL_PROFILE := core
 GL_VERSION = 3.3
 
+.PHONY: all binary clean
 all: $(GENERATED_LIB)
 binary: $(CLAD_BINARY)
 
 $(GENERATED_LIB): $(GENERATED_OBJECT_FILE)
-	ar rcs $@ $^
+	@mkdir -p $(@D)
+	ar rcs $@ $<
 
 $(GENERATED_OBJECT_FILE): $(GENERATED_SOURCE_FILE) $(GENERATED_HEADER_FILE)
-	$(CC) $(CFLAGS) -c -o $@ -I$(GENERATED_DIR) $<
+	$(CC) $(CFLAGS) -c -o $@ -I$(GENERATED_DIR)/include $<
 
 $(GENERATED_HEADER_FILE) $(GENERATED_SOURCE_FILE): $(CLAD_BINARY) $(KHR_HEADER) files/gl.xml
-	mkdir -p $(@D)
+	mkdir -p $(dir $(GENERATED_SOURCE_FILE))
+	mkdir -p $(dir $(GENERATED_HEADER_FILE))
 	$(CLAD_BINARY) \
 	--in-xml files/gl.xml \
 	--out-header $(GENERATED_HEADER_FILE) \
@@ -59,3 +62,7 @@ $(CLAD_BINARY): $(OBJECTS)
 $(BUILD_DIR)/%.o: %.c Makefile
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+clean:
+	rm -r $(BUILD_DIR)
+	rm -r $(GENERATED_DIR)
