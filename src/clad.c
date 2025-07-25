@@ -939,6 +939,7 @@ static void try_to_close(FILE *fp)
 int main(int argc, char **argv) 
 {
     (void) argc;
+    int ret = EXIT_FAILURE;
 
     CladArguments arguments = parse_commandline_arguments(argv);
     if (!arguments.parsed_succesfully) 
@@ -953,12 +954,11 @@ int main(int argc, char **argv)
             "--profile <opengl profile> " 
             "--version <opengl version>\n"
         );
-        return EXIT_FAILURE;
+        return ret;
     }
 
     FILE *output_header = try_to_open(arguments.output_header, "w");
     FILE *output_source = try_to_open(arguments.output_source, "w");
-    int ret = EXIT_FAILURE;
 
     if (output_header && output_source) 
     {
@@ -974,9 +974,8 @@ int main(int argc, char **argv)
         }
 
         free(src);
+        ret = EXIT_SUCCESS;
     }
-
-    ret = EXIT_SUCCESS;
 
 failure:
     try_to_close(output_header);
