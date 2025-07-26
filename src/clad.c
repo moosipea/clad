@@ -934,7 +934,7 @@ static CladArguments parse_commandline_arguments(char **args)
         {
             continue;
         }
-        if (streq(next_argument, "--snake_case"))
+        if (streq(next_argument, "--snake-case"))
         {
             parsed_arguments.use_snake_case = true;
         }
@@ -1046,7 +1046,8 @@ int main(int argc, char **argv)
                         "--out-source <file> "
                         "--api <openl api> "
                         "--profile <opengl profile> "
-                        "--version <opengl version>\n");
+                        "--version <opengl version> "
+                        "[--snake-case]\n");
         return ret;
     }
 
