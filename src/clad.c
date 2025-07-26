@@ -1,8 +1,8 @@
 #include "string_buffer.h"
 #include "xml.h"
 #include <assert.h>
-#include <stdlib.h>
 #include <ctype.h>
+#include <stdlib.h>
 
 #define PREFIX "clad_"
 
@@ -189,9 +189,9 @@ typedef struct
     FILE *output_source;
 } GenerationContext;
 
-static GenerationContext init_context(bool use_snake_case, GLAPIType api, GLProfile profile,
-                                      GLVersion version, FILE *output_header,
-                                      FILE *output_source)
+static GenerationContext init_context(bool use_snake_case, GLAPIType api,
+                                      GLProfile profile, GLVersion version,
+                                      FILE *output_header, FILE *output_source)
 {
     GenerationContext ctx = {0};
     ctx.use_snake_case = use_snake_case;
@@ -521,7 +521,7 @@ static void generate_command_declaration(GenerationContext *ctx,
     write_prototype(&ctx->command_prototypes, command);
     sb_puts(";\n", &ctx->command_prototypes);
 }
-        
+
 static void write_snake_case(StringBuffer *sb, XML_StringView name)
 {
     char previous = '\0';
@@ -534,7 +534,7 @@ static void write_snake_case(StringBuffer *sb, XML_StringView name)
             sb_putc('_', sb);
             sb_putc(ch + 32, sb); // TODO: magic number
         }
-        else 
+        else
         {
             sb_putc(ch, sb);
         }
@@ -563,7 +563,7 @@ static void generate_command_define(GenerationContext *ctx, XML_Token command)
 
         write_snake_case(&ctx->command_defines, child.value.text);
     }
-    else 
+    else
     {
         write_inner_text(&ctx->command_defines, *command_name, -1);
     }
@@ -834,8 +834,9 @@ static void generate(XML_Token root, CladArguments args, FILE *output_header,
 {
     assert(root.type == XML_TOKEN_NODE);
 
-    GenerationContext ctx = init_context(args.use_snake_case, args.api, args.profile, args.version,
-                                         output_header, output_source);
+    GenerationContext ctx =
+        init_context(args.use_snake_case, args.api, args.profile, args.version,
+                     output_header, output_source);
     generate_types(&ctx, root);
     gather_featureset(&ctx, root);
     write_header(&ctx);
@@ -938,14 +939,16 @@ static CladArguments parse_commandline_arguments(char **args)
         {
             parsed_arguments.use_snake_case = true;
         }
-        else if (parse_kv(&argv, &value, next_argument, "--in-xml", "file path"))
+        else if (parse_kv(&argv, &value, next_argument, "--in-xml",
+                          "file path"))
         {
             if (!value)
                 break;
             parsed_arguments.input_xml = value;
             has_been_parsed |= 0x01;
         }
-        else if (parse_kv(&argv, &value, next_argument, "--out-header", "file path"))
+        else if (parse_kv(&argv, &value, next_argument, "--out-header",
+                          "file path"))
         {
             if (!value)
                 break;
