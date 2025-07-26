@@ -3,7 +3,8 @@
 
 #include <stdlib.h>
 
-typedef struct {
+typedef struct
+{
     char *ptr;
     size_t length;
     size_t capacity;

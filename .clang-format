@@ -1,0 +1,10 @@
+# BasedOnStyle: LLVM
+IndentWidth: 4
+ColumnLimit: 80
+PointerAlignment: Right
+BreakBeforeBraces: Allman
+
+# AlignAfterOpenBracket: BlockIndent
+# AlignArrayOfStructures: Right
+# 
+# Cpp11BracedListStyle: false
