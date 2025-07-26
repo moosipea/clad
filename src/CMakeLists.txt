@@ -4,9 +4,24 @@ add_executable(clad_generator
     string_buffer.c
 )
 
-set(GL_API gl)
-set(GL_PROFILE core)
-set(GL_VERSION 3.3)
+if(NOT CLAD_GL_API)
+    set(CLAD_GL_API "gl")
+endif()
+
+if(NOT CLAD_GL_PROFILE)
+    set(CLAD_GL_PROFILE "core")
+endif()
+
+if(NOT CLAD_GL_VERSION)
+    set(CLAD_GL_VERSION "3.3")
+endif()
+
+option(CLAD_USE_SNAKE_CASE "Use snake_case in favour of camelCase" OFF)
+if(${CLAD_USE_SNAKE_CASE})
+    set(CLAD_SNAKE_CASE --snake-case)
+else()
+    set(CLAD_SNAKE_CASE "")
+endif()
 
 set(GENERATED_HEADER ${PROJECT_BINARY_DIR}/generated/include/clad/gl.h)
 set(GENERATED_SOURCE ${PROJECT_BINARY_DIR}/generated/gl.c)
@@ -23,9 +38,10 @@ add_custom_command(
         --in-xml ${PROJECT_SOURCE_DIR}/files/gl.xml
         --out-header ${GENERATED_HEADER}
         --out-source ${GENERATED_SOURCE}
-        --api ${GL_API}
-        --profile ${GL_PROFILE}
-        --version ${GL_VERSION}
+        --api ${CLAD_GL_API}
+        --profile ${CLAD_GL_PROFILE}
+        --version ${CLAD_GL_VERSION}
+        ${CLAD_SNAKE_CASE}
     DEPENDS clad_generator
 )
 
