@@ -2,6 +2,7 @@
 #include "xml.h"
 #include <assert.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 #define PREFIX "clad_"
 
@@ -100,6 +101,10 @@ typedef struct
     GLAPIType api;
     GLProfile profile;
     GLVersion version;
+
+    // Optional
+    bool use_snake_case;
+
     bool parsed_succesfully;
 } CladArguments;
 
@@ -165,6 +170,8 @@ static void rl_free(RequirementList rl)
 
 typedef struct
 {
+    bool use_snake_case;
+
     GLAPIType api;
     GLProfile profile;
     GLVersion version;
@@ -182,11 +189,12 @@ typedef struct
     FILE *output_source;
 } GenerationContext;
 
-static GenerationContext init_context(GLAPIType api, GLProfile profile,
+static GenerationContext init_context(bool use_snake_case, GLAPIType api, GLProfile profile,
                                       GLVersion version, FILE *output_header,
                                       FILE *output_source)
 {
     GenerationContext ctx = {0};
+    ctx.use_snake_case = use_snake_case;
     ctx.api = api;
     ctx.profile = profile;
     ctx.version = version;
@@ -513,14 +521,53 @@ static void generate_command_declaration(GenerationContext *ctx,
     write_prototype(&ctx->command_prototypes, command);
     sb_puts(";\n", &ctx->command_prototypes);
 }
+        
+static void write_snake_case(StringBuffer *sb, XML_StringView name)
+{
+    char previous = '\0';
+    for (size_t i = 0; i < name.length; i++)
+    {
+        char ch = name.start[i];
+
+        if (isupper(ch) && islower(previous))
+        {
+            sb_putc('_', sb);
+            sb_putc(ch + 32, sb); // TODO: magic number
+        }
+        else 
+        {
+            sb_putc(ch, sb);
+        }
+
+        previous = ch;
+    }
+}
 
 static void generate_command_define(GenerationContext *ctx, XML_Token command)
 {
     XML_Token *proto = find_next(command, "proto", NULL);
+    assert(proto);
+
     XML_Token *command_name = find_next(*proto, "name", NULL);
+    assert(command_name);
 
     sb_puts("#define ", &ctx->command_defines);
-    write_inner_text(&ctx->command_defines, *command_name, -1);
+
+    if (ctx->use_snake_case)
+    {
+        assert(command_name->type == XML_TOKEN_NODE);
+        assert(command_name->value.content.length == 1);
+
+        XML_Token child = command_name->value.content.tokens[0];
+        assert(child.type == XML_TOKEN_TEXT);
+
+        write_snake_case(&ctx->command_defines, child.value.text);
+    }
+    else 
+    {
+        write_inner_text(&ctx->command_defines, *command_name, -1);
+    }
+
     sb_putc(' ', &ctx->command_defines);
     sb_puts(PREFIX, &ctx->command_defines);
     write_inner_text(&ctx->command_defines, *command_name, -1);
@@ -787,7 +834,7 @@ static void generate(XML_Token root, CladArguments args, FILE *output_header,
 {
     assert(root.type == XML_TOKEN_NODE);
 
-    GenerationContext ctx = init_context(args.api, args.profile, args.version,
+    GenerationContext ctx = init_context(args.use_snake_case, args.api, args.profile, args.version,
                                          output_header, output_source);
     generate_types(&ctx, root);
     gather_featureset(&ctx, root);
@@ -822,7 +869,7 @@ static void generate(XML_Token root, CladArguments args, FILE *output_header,
 
 char *shift_arguments(char ***argv)
 {
-    char *next_string = (*argv)[0];
+    char *next_string = **argv;
     if (next_string != NULL)
     {
         (*argv)++;
@@ -887,14 +934,18 @@ static CladArguments parse_commandline_arguments(char **args)
         {
             continue;
         }
-        if (parse_kv(&argv, &value, next_argument, "--in-xml", "file path"))
+        if (streq(next_argument, "--snake_case"))
+        {
+            parsed_arguments.use_snake_case = true;
+        }
+        else if (parse_kv(&argv, &value, next_argument, "--in-xml", "file path"))
         {
             if (!value)
                 break;
             parsed_arguments.input_xml = value;
             has_been_parsed |= 0x01;
         }
-        if (parse_kv(&argv, &value, next_argument, "--out-header", "file path"))
+        else if (parse_kv(&argv, &value, next_argument, "--out-header", "file path"))
         {
             if (!value)
                 break;
