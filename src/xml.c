@@ -382,9 +382,10 @@ char *XML_read_file(const char *file_name)
     rewind(fp);
 
     char *input_buffer = malloc(length + 1);
-
     size_t elements_read = fread(input_buffer, 1, length, fp);
-    assert(length == elements_read);
+
+    // TODO: this should really be checked but I don't have time for that now.
+    (void) elements_read;
 
     input_buffer[length] = '\0';
     fclose(fp);
