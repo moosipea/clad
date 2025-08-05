@@ -1,4 +1,9 @@
+#ifdef _WIN32
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+
 #include "string_buffer.h"
+#include "string_view.h"
 #include "xml.h"
 #include <assert.h>
 #include <ctype.h>
@@ -27,36 +32,32 @@
     X(GL_VERSION_4_5, 4.5)                                                     \
     X(GL_VERSION_4_6, 4.6)
 
-typedef enum
-{
+typedef enum {
 #define X(version, short) version,
     GL_VERSIONS
 #undef X
         GL_VERSION_INVALID,
 } GLVersion;
 
-static GLVersion gl_version_from_sv(XML_StringView sv)
-{
+static GLVersion gl_version_from_sv(StringView sv) {
 #define X(version, short)                                                      \
-    if (XML_str_eq_cstr(sv, #version))                                         \
+    if (sv_equal_cstr(sv, #version))                                           \
         return version;
     GL_VERSIONS
 #undef X
     return GL_VERSION_INVALID;
 }
 
-static GLVersion gl_version_from_sv_short(XML_StringView sv)
-{
+static GLVersion gl_version_from_sv_short(StringView sv) {
 #define X(version, short)                                                      \
-    if (XML_str_eq_cstr(sv, #short))                                           \
+    if (sv_equal_cstr(sv, #short))                                             \
         return version;
     GL_VERSIONS
 #undef X
     return GL_VERSION_INVALID;
 }
 
-typedef enum
-{
+typedef enum {
     GL_API_GL,
     GL_API_GLES1,
     GL_API_GLES2,
@@ -64,37 +65,33 @@ typedef enum
     GL_API_INVALID,
 } GLAPIType;
 
-static GLAPIType gl_api_from_sv(XML_StringView sv)
-{
-    if (XML_str_eq_cstr(sv, "gl"))
+static GLAPIType gl_api_from_sv(StringView sv) {
+    if (sv_equal_cstr(sv, "gl"))
         return GL_API_GL;
-    if (XML_str_eq_cstr(sv, "gles1"))
+    if (sv_equal_cstr(sv, "gles1"))
         return GL_API_GLES1;
-    if (XML_str_eq_cstr(sv, "gles2"))
+    if (sv_equal_cstr(sv, "gles2"))
         return GL_API_GLES2;
-    if (XML_str_eq_cstr(sv, "glsc2"))
+    if (sv_equal_cstr(sv, "glsc2"))
         return GL_API_GLSC2;
     return GL_API_INVALID;
 }
 
-typedef enum
-{
+typedef enum {
     GL_PROFILE_CORE,
     GL_PROFILE_COMPATIBILITY,
     GL_PROFILE_INVALID,
 } GLProfile;
 
-static GLProfile gl_profile_from_sv(XML_StringView sv)
-{
-    if (XML_str_eq_cstr(sv, "core"))
+static GLProfile gl_profile_from_sv(StringView sv) {
+    if (sv_equal_cstr(sv, "core"))
         return GL_PROFILE_CORE;
-    if (XML_str_eq_cstr(sv, "compatibility"))
+    if (sv_equal_cstr(sv, "compatibility"))
         return GL_PROFILE_COMPATIBILITY;
     return GL_PROFILE_INVALID;
 }
 
-typedef struct
-{
+typedef struct {
     const char *input_xml;
     const char *output_header;
     const char *output_source;
@@ -108,24 +105,21 @@ typedef struct
     bool parsed_succesfully;
 } CladArguments;
 
-typedef enum
-{
+typedef enum {
     DEF_ENUM,
     DEF_CMD,
 } DefinitionType;
 
-typedef struct
-{
+typedef struct {
     DefinitionType *types;
-    XML_StringView *names;
+    StringView *names;
     bool *required;
     size_t length;
     size_t capacity;
 } RequirementList;
 
-static RequirementList rl_init(void)
-{
-    RequirementList rl = {0};
+static RequirementList rl_init(void) {
+    RequirementList rl = { 0 };
     rl.capacity = 32;
     rl.types = calloc(rl.capacity, sizeof(*rl.types));
     rl.names = calloc(rl.capacity, sizeof(*rl.names));
@@ -133,21 +127,17 @@ static RequirementList rl_init(void)
     return rl;
 }
 
-static void rl_add(RequirementList *rl, DefinitionType type,
-                   XML_StringView name, bool required)
-{
+static void rl_add(RequirementList *rl, DefinitionType type, StringView name,
+                   bool required) {
     // First check whether the feature is in the list.
-    for (size_t i = 0; i < rl->length; i++)
-    {
-        if (rl->types[i] == type && XML_str_eq(rl->names[i], name))
-        {
+    for (size_t i = 0; i < rl->length; i++) {
+        if (rl->types[i] == type && sv_equal(rl->names[i], name)) {
             rl->required[i] = required;
             return;
         }
     }
 
-    if (rl->length >= rl->capacity)
-    {
+    if (rl->length >= rl->capacity) {
         rl->capacity *= 2;
         rl->types = realloc(rl->types, rl->capacity * sizeof(*rl->types));
         rl->names = realloc(rl->names, rl->capacity * sizeof(*rl->names));
@@ -161,15 +151,13 @@ static void rl_add(RequirementList *rl, DefinitionType type,
     rl->length++;
 }
 
-static void rl_free(RequirementList rl)
-{
+static void rl_free(RequirementList rl) {
     free(rl.types);
     free(rl.names);
     free(rl.required);
 }
 
-typedef struct
-{
+typedef struct {
     bool use_snake_case;
 
     GLAPIType api;
@@ -191,9 +179,9 @@ typedef struct
 
 static GenerationContext init_context(bool use_snake_case, GLAPIType api,
                                       GLProfile profile, GLVersion version,
-                                      FILE *output_header, FILE *output_source)
-{
-    GenerationContext ctx = {0};
+                                      FILE *output_header,
+                                      FILE *output_source) {
+    GenerationContext ctx = { 0 };
     ctx.use_snake_case = use_snake_case;
     ctx.api = api;
     ctx.profile = profile;
@@ -210,8 +198,7 @@ static GenerationContext init_context(bool use_snake_case, GLAPIType api,
     return ctx;
 }
 
-static void free_context(GenerationContext ctx)
-{
+static void free_context(GenerationContext ctx) {
     sb_free(ctx.types);
     sb_free(ctx.enums);
     sb_free(ctx.command_lookup);
@@ -221,36 +208,28 @@ static void free_context(GenerationContext ctx)
     rl_free(ctx.requirements);
 }
 
-static XML_Token *find_next(XML_Token parent, const char *tag, size_t *index)
-{
+static xml_Token *find_next(xml_Token parent, const char *tag, size_t *index) {
     size_t local_index = 0;
 
-    if (index == NULL)
-    {
+    if (index == NULL) {
         index = &local_index;
     }
 
-    while (*index < parent.value.content.length)
-    {
-        XML_Token *child = &parent.value.content.tokens[(*index)++];
-        if (XML_str_eq_cstr(child->value.content.tag.name, tag))
-        {
+    while (*index < parent.value.content.length) {
+        xml_Token *child = &parent.value.content.tokens[(*index)++];
+        if (sv_equal_cstr(child->value.content.tag.name, tag)) {
             return child;
         }
     }
     return NULL;
 }
 
-static bool sv_starts_with(XML_StringView str, const char *with)
-{
-    for (size_t i = 0; i < str.length; i++)
-    {
-        if (with[i] == '\0')
-        {
+static bool sv_starts_with(StringView str, const char *with) {
+    for (size_t i = 0; i < str.length; i++) {
+        if (with[i] == '\0') {
             break;
         }
-        if (str.start[i] != with[i])
-        {
+        if (str.start[i] != with[i]) {
             return false;
         }
     }
@@ -258,42 +237,30 @@ static bool sv_starts_with(XML_StringView str, const char *with)
     return true;
 }
 
-static void put_xml_string_view(StringBuffer *file, XML_StringView str)
-{
+static void put_xml_string_view(StringBuffer *file, StringView str) {
     size_t i = 0;
-    while (i < str.length)
-    {
-        if (str.start[i] == '&')
-        {
-            XML_StringView substr = {.start = &str.start[i],
-                                     .length = str.length - i};
+    while (i < str.length) {
+        if (str.start[i] == '&') {
+            StringView substr = { .start = &str.start[i],
+                                  .length = str.length - i };
 
-            if (sv_starts_with(substr, "&quot;"))
-            {
+            if (sv_starts_with(substr, "&quot;")) {
                 sb_putc('"', file);
                 i += 6;
                 continue;
-            }
-            else if (sv_starts_with(substr, "&apos;"))
-            {
+            } else if (sv_starts_with(substr, "&apos;")) {
                 sb_putc('\'', file);
                 i += 6;
                 continue;
-            }
-            else if (sv_starts_with(substr, "&lt;"))
-            {
+            } else if (sv_starts_with(substr, "&lt;")) {
                 sb_putc('<', file);
                 i += 4;
                 continue;
-            }
-            else if (sv_starts_with(substr, "&gt;"))
-            {
+            } else if (sv_starts_with(substr, "&gt;")) {
                 sb_putc('>', file);
                 i += 4;
                 continue;
-            }
-            else if (sv_starts_with(substr, "&amp;"))
-            {
+            } else if (sv_starts_with(substr, "&amp;")) {
                 sb_putc('&', file);
                 i += 5;
                 continue;
@@ -305,18 +272,14 @@ static void put_xml_string_view(StringBuffer *file, XML_StringView str)
     }
 }
 
-static void write_inner_text(StringBuffer *buffer, XML_Token token, int count)
-{
-    switch (token.type)
-    {
+static void write_inner_text(StringBuffer *buffer, xml_Token token, int count) {
+    switch (token.type) {
     case XML_TOKEN_TEXT:
         put_xml_string_view(buffer, token.value.text);
         break;
-    case XML_TOKEN_NODE:
-    {
+    case XML_TOKEN_NODE: {
         size_t max = (count < 0) ? token.value.content.length : (size_t)count;
-        for (size_t i = 0; i < max; i++)
-        {
+        for (size_t i = 0; i < max; i++) {
             write_inner_text(buffer, token.value.content.tokens[i], -1);
         }
         break;
@@ -324,17 +287,14 @@ static void write_inner_text(StringBuffer *buffer, XML_Token token, int count)
     }
 }
 
-static void generate_types(GenerationContext *ctx, XML_Token root)
-{
-    XML_Token *types = find_next(root, "types", NULL);
+static void generate_types(GenerationContext *ctx, xml_Token root) {
+    xml_Token *types = find_next(root, "types", NULL);
     assert(types);
 
-    for (size_t i = 0; i < types->value.content.length; i++)
-    {
-        XML_Token token = types->value.content.tokens[i];
+    for (size_t i = 0; i < types->value.content.length; i++) {
+        xml_Token token = types->value.content.tokens[i];
         if (token.type == XML_TOKEN_TEXT ||
-            !XML_str_eq_cstr(token.value.content.tag.name, "type"))
-        {
+            !sv_equal_cstr(token.value.content.tag.name, "type")) {
             continue;
         }
 
@@ -343,12 +303,11 @@ static void generate_types(GenerationContext *ctx, XML_Token root)
     }
 }
 
-static void write_prototype(StringBuffer *sb, XML_Token command)
-{
+static void write_prototype(StringBuffer *sb, xml_Token command) {
     size_t tag_index = 0;
-    XML_Token *proto = find_next(command, "proto", &tag_index);
+    xml_Token *proto = find_next(command, "proto", &tag_index);
     assert(proto);
-    XML_Token *command_name = find_next(*proto, "name", NULL);
+    xml_Token *command_name = find_next(*proto, "name", NULL);
     assert(command_name);
 
     // Write return type
@@ -361,17 +320,13 @@ static void write_prototype(StringBuffer *sb, XML_Token command)
     // Function parameters
     sb_putc('(', sb);
 
-    XML_Token *next_param = NULL;
+    xml_Token *next_param = NULL;
     bool first_param = true;
 
-    while ((next_param = find_next(command, "param", &tag_index)))
-    {
-        if (first_param)
-        {
+    while ((next_param = find_next(command, "param", &tag_index))) {
+        if (first_param) {
             first_param = false;
-        }
-        else
-        {
+        } else {
             sb_puts(", ", sb);
         }
 
@@ -379,18 +334,16 @@ static void write_prototype(StringBuffer *sb, XML_Token command)
     }
 
     // Function doesn't have any parameters
-    if (first_param)
-    {
+    if (first_param) {
         sb_puts("void", sb);
     }
 
     sb_puts(")", sb);
 }
 
-static void write_as_function_ptr_type(StringBuffer *sb, XML_Token command)
-{
+static void write_as_function_ptr_type(StringBuffer *sb, xml_Token command) {
     size_t tag_index = 0;
-    XML_Token *proto = find_next(command, "proto", &tag_index);
+    xml_Token *proto = find_next(command, "proto", &tag_index);
     assert(proto);
 
     // Write return type.
@@ -399,17 +352,13 @@ static void write_as_function_ptr_type(StringBuffer *sb, XML_Token command)
     sb_puts("(*)", sb);
     sb_putc('(', sb);
 
-    XML_Token *next_param = NULL;
+    xml_Token *next_param = NULL;
     bool first_param = true;
 
-    while ((next_param = find_next(command, "param", &tag_index)))
-    {
-        if (!first_param)
-        {
+    while ((next_param = find_next(command, "param", &tag_index))) {
+        if (!first_param) {
             sb_puts(", ", sb);
-        }
-        else
-        {
+        } else {
             first_param = false;
         }
 
@@ -419,57 +368,48 @@ static void write_as_function_ptr_type(StringBuffer *sb, XML_Token command)
         write_inner_text(sb, *next_param, next_param->value.content.length - 1);
 
         // A bit of a hack to strip of the trailing space.
-        if (sb->ptr[sb->length - 1] == ' ')
-        {
+        if (sb->ptr[sb->length - 1] == ' ') {
             sb->ptr[--sb->length] = '\0';
         }
     }
 
     // Function doesn't have any parameters
-    if (first_param)
-    {
+    if (first_param) {
         sb_puts("void", sb);
     }
 
     sb_putc(')', sb);
 }
 
-static void write_parameter_names(StringBuffer *sb, XML_Token command)
-{
+static void write_parameter_names(StringBuffer *sb, xml_Token command) {
     size_t param_index = 0;
-    XML_Token *next_param = NULL;
+    xml_Token *next_param = NULL;
     bool first_param = true;
 
-    while ((next_param = find_next(command, "param", &param_index)))
-    {
-        if (!first_param)
-        {
+    while ((next_param = find_next(command, "param", &param_index))) {
+        if (!first_param) {
             sb_puts(", ", sb);
-        }
-        else
-        {
+        } else {
             first_param = false;
         }
 
         // Here we must extract the names of parameters and ignore their types.
-        XML_Token *name_tag = find_next(*next_param, "name", NULL);
+        xml_Token *name_tag = find_next(*next_param, "name", NULL);
         write_inner_text(sb, *name_tag, -1);
     }
 }
 
-static void write_body(StringBuffer *sb, XML_Token command,
-                       size_t *command_index)
-{
-    XML_Token *proto = find_next(command, "proto", NULL);
-    XML_Token return_type = proto->value.content.tokens[0];
+static void write_body(StringBuffer *sb, xml_Token command,
+                       size_t *command_index) {
+    xml_Token *proto = find_next(command, "proto", NULL);
+    xml_Token return_type = proto->value.content.tokens[0];
 
     // Function body
     sb_puts("{\n    ", sb);
 
     // If the command doesn't return anything, the wrapper also shouldn't return
     // anything. This avoids a warning.
-    if (!XML_str_eq_cstr(return_type.value.text, "void "))
-    {
+    if (!sv_equal_cstr(return_type.value.text, "void ")) {
         sb_puts("return ", sb);
     }
 
@@ -499,14 +439,13 @@ static void write_body(StringBuffer *sb, XML_Token command,
     sb_puts("}\n\n", sb);
 }
 
-static void generate_command_wrapper(GenerationContext *ctx, XML_Token command)
-{
+static void generate_command_wrapper(GenerationContext *ctx,
+                                     xml_Token command) {
     size_t tag_index = 0;
-    XML_Token *proto = find_next(command, "proto", &tag_index);
-    XML_Token *command_name = find_next(*proto, "name", NULL);
+    xml_Token *proto = find_next(command, "proto", &tag_index);
+    xml_Token *command_name = find_next(*proto, "name", NULL);
 
     write_prototype(&ctx->command_wrappers, command);
-    sb_putc('\n', &ctx->command_wrappers);
     write_body(&ctx->command_wrappers, command, &ctx->command_index);
 
     // Append entry to command lookup
@@ -516,26 +455,20 @@ static void generate_command_wrapper(GenerationContext *ctx, XML_Token command)
 }
 
 static void generate_command_declaration(GenerationContext *ctx,
-                                         XML_Token command)
-{
+                                         xml_Token command) {
     write_prototype(&ctx->command_prototypes, command);
     sb_puts(";\n", &ctx->command_prototypes);
 }
 
-static void write_snake_case(StringBuffer *sb, XML_StringView name)
-{
+static void write_snake_case(StringBuffer *sb, StringView name) {
     char previous = '\0';
-    for (size_t i = 0; i < name.length; i++)
-    {
+    for (size_t i = 0; i < name.length; i++) {
         char ch = name.start[i];
 
-        if (isupper(ch) && islower(previous))
-        {
+        if (isupper(ch) && islower(previous)) {
             sb_putc('_', sb);
             sb_putc(ch + 32, sb); // TODO: magic number
-        }
-        else
-        {
+        } else {
             sb_putc(ch, sb);
         }
 
@@ -543,28 +476,24 @@ static void write_snake_case(StringBuffer *sb, XML_StringView name)
     }
 }
 
-static void generate_command_define(GenerationContext *ctx, XML_Token command)
-{
-    XML_Token *proto = find_next(command, "proto", NULL);
+static void generate_command_define(GenerationContext *ctx, xml_Token command) {
+    xml_Token *proto = find_next(command, "proto", NULL);
     assert(proto);
 
-    XML_Token *command_name = find_next(*proto, "name", NULL);
+    xml_Token *command_name = find_next(*proto, "name", NULL);
     assert(command_name);
 
     sb_puts("#define ", &ctx->command_defines);
 
-    if (ctx->use_snake_case)
-    {
+    if (ctx->use_snake_case) {
         assert(command_name->type == XML_TOKEN_NODE);
         assert(command_name->value.content.length == 1);
 
-        XML_Token child = command_name->value.content.tokens[0];
+        xml_Token child = command_name->value.content.tokens[0];
         assert(child.type == XML_TOKEN_TEXT);
 
         write_snake_case(&ctx->command_defines, child.value.text);
-    }
-    else
-    {
+    } else {
         write_inner_text(&ctx->command_defines, *command_name, -1);
     }
 
@@ -574,11 +503,10 @@ static void generate_command_define(GenerationContext *ctx, XML_Token command)
     sb_putc('\n', &ctx->command_defines);
 }
 
-static XML_StringView get_command_name(XML_Token command)
-{
-    XML_Token *proto = find_next(command, "proto", NULL);
+static StringView get_command_name(xml_Token command) {
+    xml_Token *proto = find_next(command, "proto", NULL);
     assert(proto);
-    XML_Token *name = find_next(*proto, "name", NULL);
+    xml_Token *name = find_next(*proto, "name", NULL);
     assert(name);
 
     assert(name->value.content.length == 1);
@@ -586,16 +514,13 @@ static XML_StringView get_command_name(XML_Token command)
     return name->value.content.tokens[0].value.text;
 }
 
-void generate_command(GenerationContext *ctx, XML_Token commands,
-                      XML_StringView name)
-{
+void generate_command(GenerationContext *ctx, xml_Token commands,
+                      StringView name) {
     size_t cmd_index = 0;
-    XML_Token *command = NULL;
+    xml_Token *command = NULL;
 
-    while ((command = find_next(commands, "command", &cmd_index)))
-    {
-        if (XML_str_eq(get_command_name(*command), name))
-        {
+    while ((command = find_next(commands, "command", &cmd_index))) {
+        if (sv_equal(get_command_name(*command), name)) {
             generate_command_wrapper(ctx, *command);
             generate_command_declaration(ctx, *command);
             generate_command_define(ctx, *command);
@@ -604,8 +529,7 @@ void generate_command(GenerationContext *ctx, XML_Token commands,
     }
 }
 
-static void write_header(GenerationContext *ctx)
-{
+static void write_header(GenerationContext *ctx) {
     sb_puts("typedef void (*CladProc)(void);\n", &ctx->command_prototypes);
     sb_puts("typedef CladProc (CladProcAddrLoader)(const char *);\n\n",
             &ctx->command_prototypes);
@@ -617,8 +541,7 @@ static void write_header(GenerationContext *ctx)
     sb_puts("static Proc lookup[] = {\n", &ctx->command_lookup);
 }
 
-static void write_footer(GenerationContext *ctx)
-{
+static void write_footer(GenerationContext *ctx) {
     sb_puts("};\n\n", &ctx->command_lookup);
 
     // Generate initialization function
@@ -644,12 +567,10 @@ static void write_footer(GenerationContext *ctx)
             &ctx->command_prototypes);
 }
 
-static bool is_version_leq(XML_Token feature, GLAPIType expected_api,
-                           GLVersion max_version)
-{
-    XML_StringView api;
-    if (!XML_get_attribute(feature, "api", &api))
-    {
+static bool is_version_leq(xml_Token feature, GLAPIType expected_api,
+                           GLVersion max_version) {
+    StringView api;
+    if (!xml_get_attribute(feature, "api", &api)) {
         fprintf(stderr,
                 "Generation error: expected attribute `api` on <feature>!\n");
         return false;
@@ -658,9 +579,8 @@ static bool is_version_leq(XML_Token feature, GLAPIType expected_api,
     if (gl_api_from_sv(api) != expected_api)
         return false;
 
-    XML_StringView version;
-    if (!XML_get_attribute(feature, "name", &version))
-    {
+    StringView version;
+    if (!xml_get_attribute(feature, "name", &version)) {
         fprintf(stderr,
                 "Generation error: expected attribute `name` on <feature>!\n");
         return false;
@@ -672,31 +592,27 @@ static bool is_version_leq(XML_Token feature, GLAPIType expected_api,
     return true;
 }
 
-static void register_require(GenerationContext *ctx, XML_Token parent,
-                             bool require)
-{
-    for (size_t i = 0; i < parent.value.content.length; i++)
-    {
-        XML_Token def = parent.value.content.tokens[i];
+static void register_require(GenerationContext *ctx, xml_Token parent,
+                             bool require) {
+    for (size_t i = 0; i < parent.value.content.length; i++) {
+        xml_Token def = parent.value.content.tokens[i];
 
-        if (def.type != XML_TOKEN_NODE)
-        {
+        if (def.type != XML_TOKEN_NODE) {
             continue;
         }
 
-        XML_StringView def_tag_name = def.value.content.tag.name;
+        StringView def_tag_name = def.value.content.tag.name;
         DefinitionType def_type;
 
-        if (XML_str_eq_cstr(def_tag_name, "enum"))
+        if (sv_equal_cstr(def_tag_name, "enum"))
             def_type = DEF_ENUM;
-        else if (XML_str_eq_cstr(def_tag_name, "command"))
+        else if (sv_equal_cstr(def_tag_name, "command"))
             def_type = DEF_CMD;
         else
             continue;
 
-        XML_StringView name;
-        if (!XML_get_attribute(def, "name", &name))
-        {
+        StringView name;
+        if (!xml_get_attribute(def, "name", &name)) {
             fprintf(stderr, "Generation error: expected `name` attribute!\n");
             continue;
         }
@@ -705,12 +621,11 @@ static void register_require(GenerationContext *ctx, XML_Token parent,
     }
 }
 
-static void gather_featureset(GenerationContext *ctx, XML_Token root)
-{
+static void gather_featureset(GenerationContext *ctx, xml_Token root) {
     size_t version_tag_index = 0;
-    for (GLVersion version = GL_VERSION_1_0; version <= ctx->version; version++)
-    {
-        XML_Token *feature_tag = find_next(root, "feature", &version_tag_index);
+    for (GLVersion version = GL_VERSION_1_0; version <= ctx->version;
+         version++) {
+        xml_Token *feature_tag = find_next(root, "feature", &version_tag_index);
 
         // There are no more <feature> tags in the file.
         if (!feature_tag)
@@ -720,28 +635,23 @@ static void gather_featureset(GenerationContext *ctx, XML_Token root)
             continue;
 
         // This is a bit cursed, but if it works...
-        for (size_t r_index = 0;;)
-        {
+        for (size_t r_index = 0;;) {
             bool require = true;
-            XML_Token *r = find_next(*feature_tag, "require", &r_index);
-            if (!r)
-            {
+            xml_Token *r = find_next(*feature_tag, "require", &r_index);
+            if (!r) {
                 r = find_next(*feature_tag, "remove", &r_index);
                 require = false;
             }
 
             // Neither <require> nor <remove> could be found, exit the loop.
-            if (!r)
-            {
+            if (!r) {
                 break;
             }
 
-            XML_StringView profile;
-            if (XML_get_attribute(*r, "profile", &profile))
-            {
+            StringView profile;
+            if (xml_get_attribute(*r, "profile", &profile)) {
                 // TODO: Check whether one profile is a subset of the other!
-                if (gl_profile_from_sv(profile) != ctx->profile)
-                {
+                if (gl_profile_from_sv(profile) != ctx->profile) {
                     continue;
                 }
             }
@@ -753,8 +663,7 @@ static void gather_featureset(GenerationContext *ctx, XML_Token root)
     }
 }
 
-static void write_output_header(GenerationContext ctx)
-{
+static void write_output_header(GenerationContext ctx) {
     fputs("#ifndef CLAD_H\n", ctx.output_header);
     fputs("#define CLAD_H\n", ctx.output_header);
 
@@ -772,8 +681,7 @@ static void write_output_header(GenerationContext ctx)
     fputs("#endif\n", ctx.output_header);
 }
 
-static void write_output_source(GenerationContext ctx)
-{
+static void write_output_source(GenerationContext ctx) {
     fprintf(ctx.output_source, "#include <clad/gl.h>\n");
     fprintf(ctx.output_source, "#include <stdlib.h>\n\n");
     fwrite(ctx.command_lookup.ptr, 1, ctx.command_lookup.length,
@@ -782,43 +690,37 @@ static void write_output_source(GenerationContext ctx)
            ctx.output_source);
 }
 
-static XML_StringView get_enum_name(XML_Token _enum)
-{
-    XML_StringView name;
-    bool found_name = XML_get_attribute(_enum, "name", &name);
+static StringView get_enum_name(xml_Token _enum) {
+    StringView name;
+    bool found_name = xml_get_attribute(_enum, "name", &name);
     assert(found_name);
     return name;
 }
 
-static XML_StringView get_enum_value(XML_Token _enum)
-{
-    XML_StringView value;
-    bool found_value = XML_get_attribute(_enum, "value", &value);
+static StringView get_enum_value(xml_Token _enum) {
+    StringView value;
+    bool found_value = xml_get_attribute(_enum, "value", &value);
     assert(found_value);
     return value;
 }
 
-static void generate_enum(GenerationContext *ctx, XML_Token root,
-                          XML_StringView name)
-{
+static void generate_enum(GenerationContext *ctx, xml_Token root,
+                          StringView name) {
     size_t enums_index = 0;
-    XML_Token *enums = NULL;
+    xml_Token *enums = NULL;
 
-    while ((enums = find_next(root, "enums", &enums_index)))
-    {
+    while ((enums = find_next(root, "enums", &enums_index))) {
         size_t enum_index = 0;
-        XML_Token *_enum = NULL;
+        xml_Token *_enum = NULL;
 
-        while ((_enum = find_next(*enums, "enum", &enum_index)))
-        {
-            XML_StringView enum_name = get_enum_name(*_enum);
+        while ((_enum = find_next(*enums, "enum", &enum_index))) {
+            StringView enum_name = get_enum_name(*_enum);
 
-            if (!XML_str_eq(enum_name, name))
-            {
+            if (!sv_equal(enum_name, name)) {
                 continue;
             }
 
-            XML_StringView enum_value = get_enum_value(*_enum);
+            StringView enum_value = get_enum_value(*_enum);
 
             sb_puts("#define ", &ctx->enums);
             sb_putsn(&ctx->enums, enum_name.start, enum_name.length);
@@ -829,9 +731,8 @@ static void generate_enum(GenerationContext *ctx, XML_Token root,
     }
 }
 
-static void generate(XML_Token root, CladArguments args, FILE *output_header,
-                     FILE *output_source)
-{
+static void generate(xml_Token root, CladArguments args, FILE *output_header,
+                     FILE *output_source) {
     assert(root.type == XML_TOKEN_NODE);
 
     GenerationContext ctx =
@@ -841,18 +742,15 @@ static void generate(XML_Token root, CladArguments args, FILE *output_header,
     gather_featureset(&ctx, root);
     write_header(&ctx);
 
-    XML_Token *commands = find_next(root, "commands", NULL);
+    xml_Token *commands = find_next(root, "commands", NULL);
     assert(commands);
 
-    for (size_t i = 0; i < ctx.requirements.length; i++)
-    {
-        if (!ctx.requirements.required[i])
-        {
+    for (size_t i = 0; i < ctx.requirements.length; i++) {
+        if (!ctx.requirements.required[i]) {
             continue;
         }
 
-        switch (ctx.requirements.types[i])
-        {
+        switch (ctx.requirements.types[i]) {
         case DEF_ENUM:
             generate_enum(&ctx, root, ctx.requirements.names[i]);
             break;
@@ -868,24 +766,19 @@ static void generate(XML_Token root, CladArguments args, FILE *output_header,
     free_context(ctx);
 }
 
-char *shift_arguments(char ***argv)
-{
+char *shift_arguments(char ***argv) {
     char *next_string = **argv;
-    if (next_string != NULL)
-    {
+    if (next_string != NULL) {
         (*argv)++;
     }
     return next_string;
 }
 
-bool streq(const char *a, const char *b)
-{
+bool streq(const char *a, const char *b) {
     size_t i = 0;
 
-    while (a[i] == b[i])
-    {
-        if (a[i] == '\0')
-        {
+    while (a[i] == b[i]) {
+        if (a[i] == '\0') {
             return true;
         }
         i++;
@@ -895,13 +788,10 @@ bool streq(const char *a, const char *b)
 }
 
 static bool parse_kv(char ***argv, char **value, const char *current_arg,
-                     const char *key, const char *value_kind)
-{
-    if (streq(current_arg, key))
-    {
+                     const char *key, const char *value_kind) {
+    if (streq(current_arg, key)) {
         *value = shift_arguments(argv);
-        if (*value == NULL)
-        {
+        if (*value == NULL) {
             fprintf(stderr, "error: expected %s after %s!\n", value_kind, key);
         }
         return true;
@@ -909,17 +799,15 @@ static bool parse_kv(char ***argv, char **value, const char *current_arg,
     return false;
 }
 
-static XML_StringView sv_from_cstr(const char *str)
-{
-    XML_StringView sv;
+static StringView sv_from_cstr(const char *str) {
+    StringView sv;
     sv.start = str;
-    sv.length = XML_strlen(str);
+    sv.length = convenient_strlen(str);
     return sv;
 }
 
-static CladArguments parse_commandline_arguments(char **args)
-{
-    CladArguments parsed_arguments = {0};
+static CladArguments parse_commandline_arguments(char **args) {
+    CladArguments parsed_arguments = { 0 };
 
     char **argv = args;
     char *value = NULL;
@@ -929,74 +817,58 @@ static CladArguments parse_commandline_arguments(char **args)
     // Skip first argument.
     shift_arguments(&argv);
 
-    while ((next_argument = shift_arguments(&argv)))
-    {
-        if (streq(next_argument, "\\"))
-        {
+    while ((next_argument = shift_arguments(&argv))) {
+        if (streq(next_argument, "\\")) {
             continue;
         }
-        if (streq(next_argument, "--snake-case"))
-        {
+        if (streq(next_argument, "--snake-case")) {
             parsed_arguments.use_snake_case = true;
-        }
-        else if (parse_kv(&argv, &value, next_argument, "--in-xml",
-                          "file path"))
-        {
+        } else if (parse_kv(&argv, &value, next_argument, "--in-xml",
+                            "file path")) {
             if (!value)
                 break;
             parsed_arguments.input_xml = value;
             has_been_parsed |= 0x01;
-        }
-        else if (parse_kv(&argv, &value, next_argument, "--out-header",
-                          "file path"))
-        {
+        } else if (parse_kv(&argv, &value, next_argument, "--out-header",
+                            "file path")) {
             if (!value)
                 break;
             parsed_arguments.output_header = value;
             has_been_parsed |= 0x02;
-        }
-        else if (parse_kv(&argv, &value, next_argument, "--out-source",
-                          "file path"))
-        {
+        } else if (parse_kv(&argv, &value, next_argument, "--out-source",
+                            "file path")) {
             if (!value)
                 break;
             parsed_arguments.output_source = value;
             has_been_parsed |= 0x04;
-        }
-        else if (parse_kv(&argv, &value, next_argument, "--api", "api"))
-        {
+        } else if (parse_kv(&argv, &value, next_argument, "--api", "api")) {
             if (!value)
                 break;
             GLAPIType api = gl_api_from_sv(sv_from_cstr(value));
-            if (api == GL_API_INVALID)
-            {
+            if (api == GL_API_INVALID) {
                 fprintf(stderr, "error: failed to parse API version: %s\n",
                         value);
                 break;
             }
             parsed_arguments.api = api;
             has_been_parsed |= 0x08;
-        }
-        else if (parse_kv(&argv, &value, next_argument, "--profile", "profile"))
-        {
+        } else if (parse_kv(&argv, &value, next_argument, "--profile",
+                            "profile")) {
             if (!value)
                 break;
             GLProfile profile = gl_profile_from_sv(sv_from_cstr(value));
-            if (profile == GL_PROFILE_INVALID)
-            {
+            if (profile == GL_PROFILE_INVALID) {
                 fprintf(stderr, "error: failed to parse profile: %s\n", value);
                 break;
             }
             parsed_arguments.profile = profile;
             has_been_parsed |= 0x10;
-        }
-        else if (parse_kv(&argv, &value, next_argument, "--version", "version"))
-        {
+        } else if (parse_kv(&argv, &value, next_argument, "--version",
+                            "version")) {
             if (!value)
                 break;
             GLVersion version = gl_version_from_sv_short(sv_from_cstr(value));
-            if (version == GL_VERSION_INVALID)
-            {
+            if (version == GL_VERSION_INVALID) {
                 fprintf(stderr, "error: failed to parse version: %s\n", value);
                 break;
             }
@@ -1009,40 +881,28 @@ static CladArguments parse_commandline_arguments(char **args)
     return parsed_arguments;
 }
 
-static FILE *try_to_open(const char *path, const char *mode)
-{
-#ifdef _WIN32
-#define _CRT_SECURE_NO_WARNINGS
-#endif
+static FILE *try_to_open(const char *path, const char *mode) {
     FILE *fp = fopen(path, mode);
 
-    if (!fp)
-    {
+    if (!fp) {
         fprintf(stderr, "error: couldn't open `%s`!\n", path);
     }
 
     return fp;
-#ifdef _WIN32
-#undef _CRT_SECURE_NO_WARNINGS
-#endif
 }
 
-static void try_to_close(FILE *fp)
-{
-    if (fp != NULL)
-    {
+static void try_to_close(FILE *fp) {
+    if (fp != NULL) {
         fclose(fp);
     }
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
     (void)argc;
     int ret = EXIT_FAILURE;
 
     CladArguments arguments = parse_commandline_arguments(argv);
-    if (!arguments.parsed_succesfully)
-    {
+    if (!arguments.parsed_succesfully) {
         fprintf(stderr, "Usage: clad "
                         "--in-xml <file> "
                         "--out-header <file> "
@@ -1057,17 +917,15 @@ int main(int argc, char **argv)
     FILE *output_header = try_to_open(arguments.output_header, "w");
     FILE *output_source = try_to_open(arguments.output_source, "w");
 
-    if (output_header && output_source)
-    {
-        XML_Token root;
-        char *src = XML_read_file(arguments.input_xml);
+    if (output_header && output_source) {
+        xml_Token root;
+        char *src = xml_read_file(arguments.input_xml);
         if (!src)
             goto failure;
 
-        if (XML_parse_file(src, &root))
-        {
+        if (xml_parse_file(src, &root)) {
             generate(root, arguments, output_header, output_source);
-            XML_free(root);
+            xml_free(root);
         }
 
         free(src);
