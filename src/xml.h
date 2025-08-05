@@ -4,50 +4,39 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-typedef enum
-{
-    XML_TOKEN_TEXT,
-    XML_TOKEN_NODE
-} XML_TokenType;
+typedef enum { XML_TOKEN_TEXT, XML_TOKEN_NODE } XML_TokenType;
 
-typedef struct
-{
+typedef struct {
     const char *start;
     size_t length;
 } XML_StringView;
 
-typedef struct
-{
+typedef struct {
     XML_StringView name;
     XML_StringView value;
 } XML_Attrib;
 
-typedef struct
-{
+typedef struct {
     XML_Attrib *attribs;
     size_t length;
     size_t capacity;
 } XML_Attribs;
 
-typedef struct
-{
+typedef struct {
     XML_StringView name;
     XML_Attribs attribs;
 } XML_Tag;
 
-typedef struct
-{
+typedef struct {
     XML_Tag tag;
     struct XML_Token *tokens;
     size_t length;
     size_t capacity;
 } XML_ContentList;
 
-typedef struct XML_Token
-{
+typedef struct XML_Token {
     XML_TokenType type;
-    union
-    {
+    union {
         XML_StringView text;
         XML_ContentList content;
     } value;
