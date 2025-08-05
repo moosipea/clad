@@ -1,15 +1,11 @@
 #ifndef XML_H
 #define XML_H
 
+#include "string_view.h"
 #include <stdbool.h>
 #include <stdio.h>
 
 typedef enum { XML_TOKEN_TEXT, XML_TOKEN_NODE } xml_TokenType;
-
-typedef struct {
-    const char *start;
-    size_t length;
-} xml_StringView;
 
 typedef struct {
     xml_StringView name;
@@ -50,9 +46,5 @@ bool xml_get_attribute(xml_Token token, const char *property,
 
 char *xml_read_file(const char *file_name);
 void xml_debug_print(FILE *file, xml_Token root);
-
-bool xml_str_eq(xml_StringView a, xml_StringView b);
-bool xml_str_eq_cstr(xml_StringView a, const char *b);
-size_t xml_strlen(const char *str);
 
 #endif

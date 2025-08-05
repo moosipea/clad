@@ -2,6 +2,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
+#include "string_view.h"
 #include "string_buffer.h"
 #include "xml.h"
 #include <assert.h>
