@@ -1,9 +1,4 @@
-#ifdef _WIN32
-#define _CRT_SECURE_NO_WARNINGS
-#endif
-
 #include "string_buffer.h"
-#include "string_view.h"
 #include "xml.h"
 #include <assert.h>
 #include <ctype.h>
@@ -883,6 +878,9 @@ static CladArguments parse_commandline_arguments(char **args) {
 }
 
 static FILE *try_to_open(const char *path, const char *mode) {
+#ifdef _WIN32
+#define _CRT_SECURE_NO_WARNINGS
+#endif
     FILE *fp = fopen(path, mode);
 
     if (!fp) {
@@ -890,6 +888,9 @@ static FILE *try_to_open(const char *path, const char *mode) {
     }
 
     return fp;
+#ifdef _WIN32
+#undef _CRT_SECURE_NO_WARNINGS
+#endif
 }
 
 static void try_to_close(FILE *fp) {

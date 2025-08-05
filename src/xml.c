@@ -106,6 +106,14 @@ static bool XML_starts_with_cstr(const char *str, const char *with) {
     return true;
 }
 
+size_t XML_strlen(const char *str) {
+    size_t length = 0;
+    while (str[length] != '\0') {
+        length++;
+    }
+    return length;
+}
+
 static bool XML_expect(XML_Context *ctx, char ch) {
     if (ctx->src[ctx->cursor] == ch) {
         ctx->cursor++;
@@ -340,6 +348,32 @@ bool XML_parse_file(const char *src, XML_Token *token) {
         *token = XML_parse(&ctx);
         return true;
     }
+}
+
+bool XML_str_eq(XML_StringView a, XML_StringView b) {
+    if (a.length != b.length) {
+        return false;
+    }
+
+    for (size_t i = 0; i < a.length; i++) {
+        if (a.start[i] != b.start[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool XML_str_eq_cstr(XML_StringView a, const char *b) {
+    if (a.length != XML_strlen(b)) {
+        return false;
+    }
+
+    for (size_t i = 0; i < a.length; i++) {
+        if (a.start[i] != b[i]) {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool XML_get_attribute(XML_Token token, const char *property,
