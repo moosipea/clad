@@ -446,7 +446,6 @@ static void generate_command_wrapper(GenerationContext *ctx,
     xml_Token *command_name = find_next(*proto, "name", NULL);
 
     write_prototype(&ctx->command_wrappers, command);
-    sb_putc('\n', &ctx->command_wrappers);
     write_body(&ctx->command_wrappers, command, &ctx->command_index);
 
     // Append entry to command lookup
