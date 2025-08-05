@@ -322,8 +322,7 @@ bool xml_parse_file(const char *src, xml_Token *token) {
     }
 }
 
-bool xml_get_attribute(xml_Token token, const char *property,
-                       StringView *out) {
+bool xml_get_attribute(xml_Token token, const char *property, StringView *out) {
     if (token.type != XML_TOKEN_NODE) {
         fprintf(stderr, "XML_get_attribute: expected a node, got text!\n");
         return false;

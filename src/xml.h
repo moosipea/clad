@@ -41,8 +41,7 @@ typedef struct _xml_Token {
 bool xml_parse_file(const char *src, xml_Token *token);
 void xml_free(xml_Token root);
 
-bool xml_get_attribute(xml_Token token, const char *property,
-                       StringView *out);
+bool xml_get_attribute(xml_Token token, const char *property, StringView *out);
 
 char *xml_read_file(const char *file_name);
 void xml_debug_print(FILE *file, xml_Token root);

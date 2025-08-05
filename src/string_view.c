@@ -53,4 +53,3 @@ size_t convenient_strlen(const char *str) {
     }
     return length;
 }
-
