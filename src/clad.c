@@ -2,8 +2,8 @@
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
-#include "string_view.h"
 #include "string_buffer.h"
+#include "string_view.h"
 #include "xml.h"
 #include <assert.h>
 #include <ctype.h>
@@ -39,18 +39,18 @@ typedef enum {
         GL_VERSION_INVALID,
 } GLVersion;
 
-static GLVersion gl_version_from_sv(xml_StringView sv) {
+static GLVersion gl_version_from_sv(StringView sv) {
 #define X(version, short)                                                      \
-    if (xml_str_eq_cstr(sv, #version))                                         \
+    if (sv_equal_cstr(sv, #version))                                           \
         return version;
     GL_VERSIONS
 #undef X
     return GL_VERSION_INVALID;
 }
 
-static GLVersion gl_version_from_sv_short(xml_StringView sv) {
+static GLVersion gl_version_from_sv_short(StringView sv) {
 #define X(version, short)                                                      \
-    if (xml_str_eq_cstr(sv, #short))                                           \
+    if (sv_equal_cstr(sv, #short))                                             \
         return version;
     GL_VERSIONS
 #undef X
@@ -65,14 +65,14 @@ typedef enum {
     GL_API_INVALID,
 } GLAPIType;
 
-static GLAPIType gl_api_from_sv(xml_StringView sv) {
-    if (xml_str_eq_cstr(sv, "gl"))
+static GLAPIType gl_api_from_sv(StringView sv) {
+    if (sv_equal_cstr(sv, "gl"))
         return GL_API_GL;
-    if (xml_str_eq_cstr(sv, "gles1"))
+    if (sv_equal_cstr(sv, "gles1"))
         return GL_API_GLES1;
-    if (xml_str_eq_cstr(sv, "gles2"))
+    if (sv_equal_cstr(sv, "gles2"))
         return GL_API_GLES2;
-    if (xml_str_eq_cstr(sv, "glsc2"))
+    if (sv_equal_cstr(sv, "glsc2"))
         return GL_API_GLSC2;
     return GL_API_INVALID;
 }
@@ -83,10 +83,10 @@ typedef enum {
     GL_PROFILE_INVALID,
 } GLProfile;
 
-static GLProfile gl_profile_from_sv(xml_StringView sv) {
-    if (xml_str_eq_cstr(sv, "core"))
+static GLProfile gl_profile_from_sv(StringView sv) {
+    if (sv_equal_cstr(sv, "core"))
         return GL_PROFILE_CORE;
-    if (xml_str_eq_cstr(sv, "compatibility"))
+    if (sv_equal_cstr(sv, "compatibility"))
         return GL_PROFILE_COMPATIBILITY;
     return GL_PROFILE_INVALID;
 }
@@ -112,7 +112,7 @@ typedef enum {
 
 typedef struct {
     DefinitionType *types;
-    xml_StringView *names;
+    StringView *names;
     bool *required;
     size_t length;
     size_t capacity;
@@ -127,11 +127,11 @@ static RequirementList rl_init(void) {
     return rl;
 }
 
-static void rl_add(RequirementList *rl, DefinitionType type,
-                   xml_StringView name, bool required) {
+static void rl_add(RequirementList *rl, DefinitionType type, StringView name,
+                   bool required) {
     // First check whether the feature is in the list.
     for (size_t i = 0; i < rl->length; i++) {
-        if (rl->types[i] == type && xml_str_eq(rl->names[i], name)) {
+        if (rl->types[i] == type && sv_equal(rl->names[i], name)) {
             rl->required[i] = required;
             return;
         }
@@ -217,14 +217,14 @@ static xml_Token *find_next(xml_Token parent, const char *tag, size_t *index) {
 
     while (*index < parent.value.content.length) {
         xml_Token *child = &parent.value.content.tokens[(*index)++];
-        if (xml_str_eq_cstr(child->value.content.tag.name, tag)) {
+        if (sv_equal_cstr(child->value.content.tag.name, tag)) {
             return child;
         }
     }
     return NULL;
 }
 
-static bool sv_starts_with(xml_StringView str, const char *with) {
+static bool sv_starts_with(StringView str, const char *with) {
     for (size_t i = 0; i < str.length; i++) {
         if (with[i] == '\0') {
             break;
@@ -237,12 +237,12 @@ static bool sv_starts_with(xml_StringView str, const char *with) {
     return true;
 }
 
-static void put_xml_string_view(StringBuffer *file, xml_StringView str) {
+static void put_xml_string_view(StringBuffer *file, StringView str) {
     size_t i = 0;
     while (i < str.length) {
         if (str.start[i] == '&') {
-            xml_StringView substr = { .start = &str.start[i],
-                                      .length = str.length - i };
+            StringView substr = { .start = &str.start[i],
+                                  .length = str.length - i };
 
             if (sv_starts_with(substr, "&quot;")) {
                 sb_putc('"', file);
@@ -294,7 +294,7 @@ static void generate_types(GenerationContext *ctx, xml_Token root) {
     for (size_t i = 0; i < types->value.content.length; i++) {
         xml_Token token = types->value.content.tokens[i];
         if (token.type == XML_TOKEN_TEXT ||
-            !xml_str_eq_cstr(token.value.content.tag.name, "type")) {
+            !sv_equal_cstr(token.value.content.tag.name, "type")) {
             continue;
         }
 
@@ -409,7 +409,7 @@ static void write_body(StringBuffer *sb, xml_Token command,
 
     // If the command doesn't return anything, the wrapper also shouldn't return
     // anything. This avoids a warning.
-    if (!xml_str_eq_cstr(return_type.value.text, "void ")) {
+    if (!sv_equal_cstr(return_type.value.text, "void ")) {
         sb_puts("return ", sb);
     }
 
@@ -461,7 +461,7 @@ static void generate_command_declaration(GenerationContext *ctx,
     sb_puts(";\n", &ctx->command_prototypes);
 }
 
-static void write_snake_case(StringBuffer *sb, xml_StringView name) {
+static void write_snake_case(StringBuffer *sb, StringView name) {
     char previous = '\0';
     for (size_t i = 0; i < name.length; i++) {
         char ch = name.start[i];
@@ -504,7 +504,7 @@ static void generate_command_define(GenerationContext *ctx, xml_Token command) {
     sb_putc('\n', &ctx->command_defines);
 }
 
-static xml_StringView get_command_name(xml_Token command) {
+static StringView get_command_name(xml_Token command) {
     xml_Token *proto = find_next(command, "proto", NULL);
     assert(proto);
     xml_Token *name = find_next(*proto, "name", NULL);
@@ -516,12 +516,12 @@ static xml_StringView get_command_name(xml_Token command) {
 }
 
 void generate_command(GenerationContext *ctx, xml_Token commands,
-                      xml_StringView name) {
+                      StringView name) {
     size_t cmd_index = 0;
     xml_Token *command = NULL;
 
     while ((command = find_next(commands, "command", &cmd_index))) {
-        if (xml_str_eq(get_command_name(*command), name)) {
+        if (sv_equal(get_command_name(*command), name)) {
             generate_command_wrapper(ctx, *command);
             generate_command_declaration(ctx, *command);
             generate_command_define(ctx, *command);
@@ -570,7 +570,7 @@ static void write_footer(GenerationContext *ctx) {
 
 static bool is_version_leq(xml_Token feature, GLAPIType expected_api,
                            GLVersion max_version) {
-    xml_StringView api;
+    StringView api;
     if (!xml_get_attribute(feature, "api", &api)) {
         fprintf(stderr,
                 "Generation error: expected attribute `api` on <feature>!\n");
@@ -580,7 +580,7 @@ static bool is_version_leq(xml_Token feature, GLAPIType expected_api,
     if (gl_api_from_sv(api) != expected_api)
         return false;
 
-    xml_StringView version;
+    StringView version;
     if (!xml_get_attribute(feature, "name", &version)) {
         fprintf(stderr,
                 "Generation error: expected attribute `name` on <feature>!\n");
@@ -602,17 +602,17 @@ static void register_require(GenerationContext *ctx, xml_Token parent,
             continue;
         }
 
-        xml_StringView def_tag_name = def.value.content.tag.name;
+        StringView def_tag_name = def.value.content.tag.name;
         DefinitionType def_type;
 
-        if (xml_str_eq_cstr(def_tag_name, "enum"))
+        if (sv_equal_cstr(def_tag_name, "enum"))
             def_type = DEF_ENUM;
-        else if (xml_str_eq_cstr(def_tag_name, "command"))
+        else if (sv_equal_cstr(def_tag_name, "command"))
             def_type = DEF_CMD;
         else
             continue;
 
-        xml_StringView name;
+        StringView name;
         if (!xml_get_attribute(def, "name", &name)) {
             fprintf(stderr, "Generation error: expected `name` attribute!\n");
             continue;
@@ -649,7 +649,7 @@ static void gather_featureset(GenerationContext *ctx, xml_Token root) {
                 break;
             }
 
-            xml_StringView profile;
+            StringView profile;
             if (xml_get_attribute(*r, "profile", &profile)) {
                 // TODO: Check whether one profile is a subset of the other!
                 if (gl_profile_from_sv(profile) != ctx->profile) {
@@ -691,22 +691,22 @@ static void write_output_source(GenerationContext ctx) {
            ctx.output_source);
 }
 
-static xml_StringView get_enum_name(xml_Token _enum) {
-    xml_StringView name;
+static StringView get_enum_name(xml_Token _enum) {
+    StringView name;
     bool found_name = xml_get_attribute(_enum, "name", &name);
     assert(found_name);
     return name;
 }
 
-static xml_StringView get_enum_value(xml_Token _enum) {
-    xml_StringView value;
+static StringView get_enum_value(xml_Token _enum) {
+    StringView value;
     bool found_value = xml_get_attribute(_enum, "value", &value);
     assert(found_value);
     return value;
 }
 
 static void generate_enum(GenerationContext *ctx, xml_Token root,
-                          xml_StringView name) {
+                          StringView name) {
     size_t enums_index = 0;
     xml_Token *enums = NULL;
 
@@ -715,13 +715,13 @@ static void generate_enum(GenerationContext *ctx, xml_Token root,
         xml_Token *_enum = NULL;
 
         while ((_enum = find_next(*enums, "enum", &enum_index))) {
-            xml_StringView enum_name = get_enum_name(*_enum);
+            StringView enum_name = get_enum_name(*_enum);
 
-            if (!xml_str_eq(enum_name, name)) {
+            if (!sv_equal(enum_name, name)) {
                 continue;
             }
 
-            xml_StringView enum_value = get_enum_value(*_enum);
+            StringView enum_value = get_enum_value(*_enum);
 
             sb_puts("#define ", &ctx->enums);
             sb_putsn(&ctx->enums, enum_name.start, enum_name.length);
@@ -800,10 +800,10 @@ static bool parse_kv(char ***argv, char **value, const char *current_arg,
     return false;
 }
 
-static xml_StringView sv_from_cstr(const char *str) {
-    xml_StringView sv;
+static StringView sv_from_cstr(const char *str) {
+    StringView sv;
     sv.start = str;
-    sv.length = xml_strlen(str);
+    sv.length = convenient_strlen(str);
     return sv;
 }
 

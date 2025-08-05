@@ -7,13 +7,13 @@
 typedef struct {
     const char *start;
     size_t length;
-} xml_StringView;
+} StringView;
 
-bool starts_with_str(const char *str, xml_StringView with);
-bool xml_str_eq(xml_StringView a, xml_StringView b);
-bool xml_str_eq_cstr(xml_StringView a, const char *b);
+bool cstr_starts_with_sv(const char *str, StringView with);
+bool sv_equal(StringView a, StringView b);
+bool sv_equal_cstr(StringView a, const char *b);
 
-bool starts_with_cstr(const char *str, const char *with);
-size_t xml_strlen(const char *str);
+bool convenient_starts_with(const char *str, const char *with);
+size_t convenient_strlen(const char *str);
 
 #endif

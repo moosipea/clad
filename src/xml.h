@@ -8,8 +8,8 @@
 typedef enum { XML_TOKEN_TEXT, XML_TOKEN_NODE } xml_TokenType;
 
 typedef struct {
-    xml_StringView name;
-    xml_StringView value;
+    StringView name;
+    StringView value;
 } xml_Attrib;
 
 typedef struct {
@@ -19,7 +19,7 @@ typedef struct {
 } xml_Attribs;
 
 typedef struct {
-    xml_StringView name;
+    StringView name;
     xml_Attribs attribs;
 } xml_Tag;
 
@@ -33,7 +33,7 @@ typedef struct {
 typedef struct _xml_Token {
     xml_TokenType type;
     union {
-        xml_StringView text;
+        StringView text;
         xml_ContentList content;
     } value;
 } xml_Token;
@@ -42,7 +42,7 @@ bool xml_parse_file(const char *src, xml_Token *token);
 void xml_free(xml_Token root);
 
 bool xml_get_attribute(xml_Token token, const char *property,
-                       xml_StringView *out);
+                       StringView *out);
 
 char *xml_read_file(const char *file_name);
 void xml_debug_print(FILE *file, xml_Token root);

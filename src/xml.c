@@ -49,8 +49,8 @@ static void add_attrib(xml_Tag *tag, xml_Attrib attrib) {
     attribs->attribs[attribs->length++] = attrib;
 }
 
-static xml_StringView take_until_tag(ParseContext *ctx) {
-    xml_StringView str = { 0 };
+static StringView take_until_tag(ParseContext *ctx) {
+    StringView str = { 0 };
 
     str.start = &ctx->src[ctx->cursor];
     while (ctx->src[ctx->cursor] != '<') {
@@ -74,8 +74,8 @@ static void skip_whitespace(ParseContext *ctx) {
     }
 }
 
-static xml_StringView parse_ident(ParseContext *ctx) {
-    xml_StringView str = { 0 };
+static StringView parse_ident(ParseContext *ctx) {
+    StringView str = { 0 };
     str.start = &ctx->src[ctx->cursor];
 
     while (isalpha(ctx->src[ctx->cursor]) || isdigit(ctx->src[ctx->cursor])) {
@@ -98,8 +98,8 @@ static bool expect(ParseContext *ctx, char ch) {
 }
 
 static bool expect_cstr(ParseContext *ctx, const char *str) {
-    size_t length = xml_strlen(str);
-    if (starts_with_cstr(&ctx->src[ctx->cursor], str)) {
+    size_t length = convenient_strlen(str);
+    if (convenient_starts_with(&ctx->src[ctx->cursor], str)) {
         ctx->cursor += length;
         return true;
     }
@@ -109,10 +109,10 @@ static bool expect_cstr(ParseContext *ctx, const char *str) {
     return false;
 }
 
-static xml_StringView parse_string_literal(ParseContext *ctx) {
+static StringView parse_string_literal(ParseContext *ctx) {
     expect(ctx, '"');
 
-    xml_StringView str = { 0 };
+    StringView str = { 0 };
     str.start = &ctx->src[ctx->cursor];
 
     while (ctx->src[ctx->cursor] != '"') {
@@ -139,23 +139,23 @@ static xml_Attrib parse_attrib(ParseContext *ctx) {
     return attrib;
 }
 
-static bool attempt_parse_end_tag(ParseContext *ctx, xml_StringView tag) {
+static bool attempt_parse_end_tag(ParseContext *ctx, StringView tag) {
     size_t cursor = ctx->cursor;
     bool matches = true;
 
-    matches &= starts_with_cstr(&ctx->src[cursor], "</");
+    matches &= convenient_starts_with(&ctx->src[cursor], "</");
     cursor += 2;
     if (!matches) {
         return false;
     }
 
-    matches &= starts_with_str(&ctx->src[cursor], tag);
+    matches &= cstr_starts_with_sv(&ctx->src[cursor], tag);
     cursor += tag.length;
     if (!matches) {
         return false;
     }
 
-    matches &= starts_with_cstr(&ctx->src[cursor], ">");
+    matches &= convenient_starts_with(&ctx->src[cursor], ">");
     cursor++;
     if (!matches) {
         return false;
@@ -204,7 +204,7 @@ static void skip_comment(ParseContext *ctx) {
     expect_cstr(ctx, "<!--");
 
     while (ctx->src[ctx->cursor] != '\0' &&
-           !starts_with_cstr(&ctx->src[ctx->cursor], "-->")) {
+           !convenient_starts_with(&ctx->src[ctx->cursor], "-->")) {
         ctx->cursor++;
     }
 
@@ -219,7 +219,7 @@ static void skip_comment(ParseContext *ctx) {
 static xml_Token parse_xml(ParseContext *ctx) {
     xml_Token token = { 0 };
 
-    if (starts_with_cstr(&ctx->src[ctx->cursor], "<!--")) {
+    if (convenient_starts_with(&ctx->src[ctx->cursor], "<!--")) {
         skip_comment(ctx);
     }
 
@@ -257,7 +257,7 @@ void xml_debug_print(FILE *file, xml_Token root) {
                 root.value.text.start);
     } else {
         xml_ContentList content = root.value.content;
-        xml_StringView tag_name = content.tag.name;
+        StringView tag_name = content.tag.name;
         xml_Attribs attribs = content.tag.attribs;
 
         fprintf(file, "<%.*s", (int)tag_name.length, tag_name.start);
@@ -323,14 +323,14 @@ bool xml_parse_file(const char *src, xml_Token *token) {
 }
 
 bool xml_get_attribute(xml_Token token, const char *property,
-                       xml_StringView *out) {
+                       StringView *out) {
     if (token.type != XML_TOKEN_NODE) {
         fprintf(stderr, "XML_get_attribute: expected a node, got text!\n");
         return false;
     }
     for (size_t i = 0; i < token.value.content.tag.attribs.length; i++) {
         xml_Attrib attrib = token.value.content.tag.attribs.attribs[i];
-        if (xml_str_eq_cstr(attrib.name, property)) {
+        if (sv_equal_cstr(attrib.name, property)) {
             *out = attrib.value;
             return true;
         }
