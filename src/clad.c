@@ -316,7 +316,8 @@ static void write_snake_case(StringBuffer *sb, StringView name) {
     }
 }
 
-static void write_prototype(StringBuffer *sb, xml_Token command) {
+static void write_prototype(StringBuffer *sb, xml_Token command,
+                            bool snake_case) {
     size_t tag_index = 0;
     xml_Token *proto = find_next(command, "proto", &tag_index);
     assert(proto);
@@ -330,9 +331,13 @@ static void write_prototype(StringBuffer *sb, xml_Token command) {
     write_inner_text(sb, *proto, proto->value.content.length - 1);
 
     // Write function name
-    StringView command_name =
-        command_name_token->value.content.tokens[0].value.text;
-    write_snake_case(sb, command_name);
+    if (snake_case) {
+        StringView command_name =
+            command_name_token->value.content.tokens[0].value.text;
+        write_snake_case(sb, command_name);
+    } else {
+        write_inner_text(sb, *command_name_token, -1);
+    }
 
     // Function parameters
     sb_putc('(', sb);
@@ -462,7 +467,7 @@ static void generate_command_wrapper(GenerationContext *ctx,
     xml_Token *proto = find_next(command, "proto", &tag_index);
     xml_Token *command_name = find_next(*proto, "name", NULL);
 
-    write_prototype(&ctx->command_wrappers, command);
+    write_prototype(&ctx->command_wrappers, command, ctx->use_snake_case);
     write_body(&ctx->command_wrappers, command, &ctx->command_index);
 
     // Append entry to command lookup
@@ -473,7 +478,7 @@ static void generate_command_wrapper(GenerationContext *ctx,
 
 static void generate_command_declaration(GenerationContext *ctx,
                                          xml_Token command) {
-    write_prototype(&ctx->command_prototypes, command);
+    write_prototype(&ctx->command_prototypes, command, ctx->use_snake_case);
     sb_puts(";\n", &ctx->command_prototypes);
 }
 
