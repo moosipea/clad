@@ -170,7 +170,6 @@ typedef struct {
     StringBuffer enums;
     StringBuffer command_lookup;
     StringBuffer command_wrappers;
-    StringBuffer command_defines;
     StringBuffer command_prototypes;
 
     FILE *output_header;
@@ -191,7 +190,6 @@ static GenerationContext init_context(bool use_snake_case, GLAPIType api,
     ctx.enums = sb_new_buffer();
     ctx.command_lookup = sb_new_buffer();
     ctx.command_wrappers = sb_new_buffer();
-    ctx.command_defines = sb_new_buffer();
     ctx.command_prototypes = sb_new_buffer();
     ctx.output_header = output_header;
     ctx.output_source = output_source;
@@ -203,7 +201,6 @@ static void free_context(GenerationContext ctx) {
     sb_free(ctx.enums);
     sb_free(ctx.command_lookup);
     sb_free(ctx.command_wrappers);
-    sb_free(ctx.command_defines);
     sb_free(ctx.command_prototypes);
     rl_free(ctx.requirements);
 }
@@ -303,19 +300,39 @@ static void generate_types(GenerationContext *ctx, xml_Token root) {
     }
 }
 
+static void write_snake_case(StringBuffer *sb, StringView name) {
+    char previous = '\0';
+    for (size_t i = 0; i < name.length; i++) {
+        char ch = name.start[i];
+
+        if (isupper(ch) && islower(previous)) {
+            sb_putc('_', sb);
+            sb_putc(ch + 32, sb); // TODO: magic number
+        } else {
+            sb_putc(ch, sb);
+        }
+
+        previous = ch;
+    }
+}
+
 static void write_prototype(StringBuffer *sb, xml_Token command) {
     size_t tag_index = 0;
     xml_Token *proto = find_next(command, "proto", &tag_index);
     assert(proto);
-    xml_Token *command_name = find_next(*proto, "name", NULL);
-    assert(command_name);
+
+    xml_Token *command_name_token = find_next(*proto, "name", NULL);
+    assert(command_name_token);
+    assert(command_name_token->value.content.length == 1);
+    assert(command_name_token->value.content.tokens[0].type == XML_TOKEN_TEXT);
 
     // Write return type
     write_inner_text(sb, *proto, proto->value.content.length - 1);
 
     // Write function name
-    sb_puts(PREFIX, sb);
-    write_inner_text(sb, *command_name, -1);
+    StringView command_name =
+        command_name_token->value.content.tokens[0].value.text;
+    write_snake_case(sb, command_name);
 
     // Function parameters
     sb_putc('(', sb);
@@ -460,49 +477,6 @@ static void generate_command_declaration(GenerationContext *ctx,
     sb_puts(";\n", &ctx->command_prototypes);
 }
 
-static void write_snake_case(StringBuffer *sb, StringView name) {
-    char previous = '\0';
-    for (size_t i = 0; i < name.length; i++) {
-        char ch = name.start[i];
-
-        if (isupper(ch) && islower(previous)) {
-            sb_putc('_', sb);
-            sb_putc(ch + 32, sb); // TODO: magic number
-        } else {
-            sb_putc(ch, sb);
-        }
-
-        previous = ch;
-    }
-}
-
-static void generate_command_define(GenerationContext *ctx, xml_Token command) {
-    xml_Token *proto = find_next(command, "proto", NULL);
-    assert(proto);
-
-    xml_Token *command_name = find_next(*proto, "name", NULL);
-    assert(command_name);
-
-    sb_puts("#define ", &ctx->command_defines);
-
-    if (ctx->use_snake_case) {
-        assert(command_name->type == XML_TOKEN_NODE);
-        assert(command_name->value.content.length == 1);
-
-        xml_Token child = command_name->value.content.tokens[0];
-        assert(child.type == XML_TOKEN_TEXT);
-
-        write_snake_case(&ctx->command_defines, child.value.text);
-    } else {
-        write_inner_text(&ctx->command_defines, *command_name, -1);
-    }
-
-    sb_putc(' ', &ctx->command_defines);
-    sb_puts(PREFIX, &ctx->command_defines);
-    write_inner_text(&ctx->command_defines, *command_name, -1);
-    sb_putc('\n', &ctx->command_defines);
-}
-
 static StringView get_command_name(xml_Token command) {
     xml_Token *proto = find_next(command, "proto", NULL);
     assert(proto);
@@ -523,7 +497,6 @@ void generate_command(GenerationContext *ctx, xml_Token commands,
         if (sv_equal(get_command_name(*command), name)) {
             generate_command_wrapper(ctx, *command);
             generate_command_declaration(ctx, *command);
-            generate_command_define(ctx, *command);
             return;
         }
     }
@@ -671,8 +644,6 @@ static void write_output_header(GenerationContext ctx) {
     fputc('\n', ctx.output_header);
     fwrite(ctx.enums.ptr, 1, ctx.enums.length, ctx.output_header);
     fputc('\n', ctx.output_header);
-    fwrite(ctx.command_defines.ptr, 1, ctx.command_defines.length,
-           ctx.output_header);
     fputc('\n', ctx.output_header);
     fwrite(ctx.command_prototypes.ptr, 1, ctx.command_prototypes.length,
            ctx.output_header);
