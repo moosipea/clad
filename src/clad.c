@@ -4,12 +4,11 @@
 
 #include "string_buffer.h"
 #include "string_view.h"
+#include "template.h"
 #include "xml.h"
 #include <assert.h>
 #include <ctype.h>
 #include <stdlib.h>
-
-#define PREFIX "clad_"
 
 #define GL_VERSIONS                                                            \
     X(GL_VERSION_1_0, 1.0)                                                     \
@@ -170,8 +169,10 @@ typedef struct {
     StringBuffer enums;
     StringBuffer command_lookup;
     StringBuffer command_wrappers;
-    StringBuffer command_prototypes;
+    StringBuffer command_decls;
 
+    const char *header_template_path;
+    const char *source_template_path;
     FILE *output_header;
     FILE *output_source;
 } GenerationContext;
@@ -190,7 +191,7 @@ static GenerationContext init_context(bool use_snake_case, GLAPIType api,
     ctx.enums = sb_new_buffer();
     ctx.command_lookup = sb_new_buffer();
     ctx.command_wrappers = sb_new_buffer();
-    ctx.command_prototypes = sb_new_buffer();
+    ctx.command_decls = sb_new_buffer();
     ctx.output_header = output_header;
     ctx.output_source = output_source;
     return ctx;
@@ -201,7 +202,7 @@ static void free_context(GenerationContext ctx) {
     sb_free(ctx.enums);
     sb_free(ctx.command_lookup);
     sb_free(ctx.command_wrappers);
-    sb_free(ctx.command_prototypes);
+    sb_free(ctx.command_decls);
     rl_free(ctx.requirements);
 }
 
@@ -221,19 +222,6 @@ static xml_Token *find_next(xml_Token parent, const char *tag, size_t *index) {
     return NULL;
 }
 
-static bool sv_starts_with(StringView str, const char *with) {
-    for (size_t i = 0; i < str.length; i++) {
-        if (with[i] == '\0') {
-            break;
-        }
-        if (str.start[i] != with[i]) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
 static void put_xml_string_view(StringBuffer *file, StringView str) {
     size_t i = 0;
     while (i < str.length) {
@@ -241,23 +229,23 @@ static void put_xml_string_view(StringBuffer *file, StringView str) {
             StringView substr = { .start = &str.start[i],
                                   .length = str.length - i };
 
-            if (sv_starts_with(substr, "&quot;")) {
+            if (sv_starts_with_cstr(substr, "&quot;")) {
                 sb_putc('"', file);
                 i += 6;
                 continue;
-            } else if (sv_starts_with(substr, "&apos;")) {
+            } else if (sv_starts_with_cstr(substr, "&apos;")) {
                 sb_putc('\'', file);
                 i += 6;
                 continue;
-            } else if (sv_starts_with(substr, "&lt;")) {
+            } else if (sv_starts_with_cstr(substr, "&lt;")) {
                 sb_putc('<', file);
                 i += 4;
                 continue;
-            } else if (sv_starts_with(substr, "&gt;")) {
+            } else if (sv_starts_with_cstr(substr, "&gt;")) {
                 sb_putc('>', file);
                 i += 4;
                 continue;
-            } else if (sv_starts_with(substr, "&amp;")) {
+            } else if (sv_starts_with_cstr(substr, "&amp;")) {
                 sb_putc('&', file);
                 i += 5;
                 continue;
@@ -478,8 +466,8 @@ static void generate_command_wrapper(GenerationContext *ctx,
 
 static void generate_command_declaration(GenerationContext *ctx,
                                          xml_Token command) {
-    write_prototype(&ctx->command_prototypes, command, ctx->use_snake_case);
-    sb_puts(";\n", &ctx->command_prototypes);
+    write_prototype(&ctx->command_decls, command, ctx->use_snake_case);
+    sb_puts(";\n", &ctx->command_decls);
 }
 
 static StringView get_command_name(xml_Token command) {
@@ -505,44 +493,6 @@ void generate_command(GenerationContext *ctx, xml_Token commands,
             return;
         }
     }
-}
-
-static void write_header(GenerationContext *ctx) {
-    sb_puts("typedef void (*CladProc)(void);\n", &ctx->command_prototypes);
-    sb_puts("typedef CladProc (CladProcAddrLoader)(const char *);\n\n",
-            &ctx->command_prototypes);
-
-    sb_puts("typedef struct {\n", &ctx->command_lookup);
-    sb_puts("    CladProc proc;\n", &ctx->command_lookup);
-    sb_puts("    const char *name;\n", &ctx->command_lookup);
-    sb_puts("} Proc;\n\n", &ctx->command_lookup);
-    sb_puts("static Proc lookup[] = {\n", &ctx->command_lookup);
-}
-
-static void write_footer(GenerationContext *ctx) {
-    sb_puts("};\n\n", &ctx->command_lookup);
-
-    // Generate initialization function
-    sb_puts("int clad_init_gl(CladProcAddrLoader load_proc)\n",
-            &ctx->command_lookup);
-    sb_puts("{\n", &ctx->command_lookup);
-    sb_puts(
-        "    for (size_t i = 0; i < sizeof(lookup) / sizeof(*lookup); i++)\n",
-        &ctx->command_lookup);
-    sb_puts("    {\n", &ctx->command_lookup);
-    sb_puts("        lookup[i].proc = load_proc(lookup[i].name);\n",
-            &ctx->command_lookup);
-    sb_puts("        if (lookup[i].proc == NULL)\n", &ctx->command_lookup);
-    sb_puts("        {\n", &ctx->command_lookup);
-    sb_puts("            return 0;\n", &ctx->command_lookup);
-    sb_puts("        }\n", &ctx->command_lookup);
-    sb_puts("    }\n", &ctx->command_lookup);
-    sb_puts("    return 1;\n", &ctx->command_lookup);
-    sb_puts("}\n\n", &ctx->command_lookup);
-
-    // Also generate it in the header
-    sb_puts("int clad_init_gl(CladProcAddrLoader load_proc);\n",
-            &ctx->command_prototypes);
 }
 
 static bool is_version_leq(xml_Token feature, GLAPIType expected_api,
@@ -641,29 +591,41 @@ static void gather_featureset(GenerationContext *ctx, xml_Token root) {
     }
 }
 
+static StringView into_string_view(StringBuffer str) {
+    return (StringView){
+        .start = str.ptr,
+        .length = str.length,
+    };
+}
+
 static void write_output_header(GenerationContext ctx) {
-    fputs("#ifndef CLAD_H\n", ctx.output_header);
-    fputs("#define CLAD_H\n", ctx.output_header);
+    char *template_str = xml_read_file(HEADER_TEMPLATE_FILE);
+    Template template = template_init(template_str);
+    free(template_str);
 
-    fwrite(ctx.types.ptr, 1, ctx.types.length, ctx.output_header);
-    fputc('\n', ctx.output_header);
-    fwrite(ctx.enums.ptr, 1, ctx.enums.length, ctx.output_header);
-    fputc('\n', ctx.output_header);
-    fputc('\n', ctx.output_header);
-    fwrite(ctx.command_prototypes.ptr, 1, ctx.command_prototypes.length,
+    template_replace_sv(&template, "%TYPES%", into_string_view(ctx.types));
+    template_replace_sv(&template, "%ENUMS%", into_string_view(ctx.enums));
+    template_replace_sv(&template, "%COMMAND_DECLARATIONS%",
+                        into_string_view(ctx.command_decls));
+
+    fwrite(template.str.ptr, sizeof(*template.str.ptr), template.str.length,
            ctx.output_header);
-    fputc('\n', ctx.output_header);
-
-    fputs("#endif\n", ctx.output_header);
+    template_free(&template);
 }
 
 static void write_output_source(GenerationContext ctx) {
-    fprintf(ctx.output_source, "#include <clad/gl.h>\n");
-    fprintf(ctx.output_source, "#include <stdlib.h>\n\n");
-    fwrite(ctx.command_lookup.ptr, 1, ctx.command_lookup.length,
-           ctx.output_source);
-    fwrite(ctx.command_wrappers.ptr, 1, ctx.command_wrappers.length,
-           ctx.output_source);
+    char *template_str = xml_read_file(SOURCE_TEMPLATE_FILE);
+    Template template = template_init(template_str);
+    free(template_str);
+
+    template_replace_sv(&template, "%COMMAND_LOOKUP%",
+                        into_string_view(ctx.command_lookup));
+    template_replace_sv(&template, "%COMMAND_WRAPPERS%",
+                        into_string_view(ctx.command_wrappers));
+
+    fwrite(template.str.ptr, sizeof(*template.str.ptr), template.str.length,
+           ctx.output_header);
+    template_free(&template);
 }
 
 static StringView get_enum_name(xml_Token _enum) {
@@ -716,7 +678,6 @@ static void generate(xml_Token root, CladArguments args, FILE *output_header,
                      output_header, output_source);
     generate_types(&ctx, root);
     gather_featureset(&ctx, root);
-    write_header(&ctx);
 
     xml_Token *commands = find_next(root, "commands", NULL);
     assert(commands);
@@ -736,7 +697,6 @@ static void generate(xml_Token root, CladArguments args, FILE *output_header,
         }
     }
 
-    write_footer(&ctx);
     write_output_header(ctx);
     write_output_source(ctx);
     free_context(ctx);
@@ -750,22 +710,9 @@ char *shift_arguments(char ***argv) {
     return next_string;
 }
 
-bool streq(const char *a, const char *b) {
-    size_t i = 0;
-
-    while (a[i] == b[i]) {
-        if (a[i] == '\0') {
-            return true;
-        }
-        i++;
-    }
-
-    return false;
-}
-
 static bool parse_kv(char ***argv, char **value, const char *current_arg,
                      const char *key, const char *value_kind) {
-    if (streq(current_arg, key)) {
+    if (convenient_streq(current_arg, key)) {
         *value = shift_arguments(argv);
         if (*value == NULL) {
             fprintf(stderr, "error: expected %s after %s!\n", value_kind, key);
@@ -794,10 +741,10 @@ static CladArguments parse_commandline_arguments(char **args) {
     shift_arguments(&argv);
 
     while ((next_argument = shift_arguments(&argv))) {
-        if (streq(next_argument, "\\")) {
+        if (convenient_streq(next_argument, "\\")) {
             continue;
         }
-        if (streq(next_argument, "--snake-case")) {
+        if (convenient_streq(next_argument, "--snake-case")) {
             parsed_arguments.use_snake_case = true;
         } else if (parse_kv(&argv, &value, next_argument, "--in-xml",
                             "file path")) {

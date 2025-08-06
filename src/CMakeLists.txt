@@ -3,6 +3,7 @@ add_executable(clad_generator
     xml.c
     string_buffer.c
     string_view.c
+    template.c
 )
 
 if(NOT CLAD_GL_API)

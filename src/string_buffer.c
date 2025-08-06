@@ -1,6 +1,5 @@
 #include "string_buffer.h"
-#include <stdarg.h>
-#include <stdio.h>
+#include <stdlib.h>
 
 StringBuffer sb_new_buffer(void) {
     StringBuffer sb = { 0 };
