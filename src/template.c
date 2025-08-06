@@ -1,10 +1,7 @@
+#include "template.h"
 #include "string_buffer.h"
 #include "string_view.h"
 #include <stddef.h>
-
-typedef struct {
-    StringBuffer str;
-} Template;
 
 static int find_key(StringBuffer str, const char *key) {
     for (size_t i = 0; i < str.length; i++) {
