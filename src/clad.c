@@ -622,8 +622,7 @@ static void write_output_header(GenerationContext ctx) {
     StringBuffer built = template_build(&template, template_str);
     free(template_str);
 
-    fwrite(built.ptr, sizeof(*built.ptr), built.length,
-           ctx.output_header);
+    fwrite(built.ptr, sizeof(*built.ptr), built.length, ctx.output_header);
 
     template_free(&template);
     sb_free(built);
@@ -641,8 +640,7 @@ static void write_output_source(GenerationContext ctx) {
     StringBuffer built = template_build(&template, template_str);
     free(template_str);
 
-    fwrite(built.ptr, sizeof(*built.ptr), built.length,
-           ctx.output_source);
+    fwrite(built.ptr, sizeof(*built.ptr), built.length, ctx.output_source);
 
     template_free(&template);
     sb_free(built);

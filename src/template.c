@@ -1,9 +1,9 @@
 #include "template.h"
 #include "string_buffer.h"
 #include "string_view.h"
-#include <stdlib.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #define VARIABLE_START_COUNT 8
 
