@@ -6,7 +6,9 @@ typedef struct {
     const char *name;
 } Proc;
 
+static Proc lookup[] = {
 %COMMAND_LOOKUP%
+};
 
 int clad_init_gl(CladProcAddrLoader load_proc) {
     for (size_t i = 0; i < sizeof(lookup) / sizeof(*lookup); i++) {

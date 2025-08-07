@@ -3,13 +3,21 @@
 
 #include "string_buffer.h"
 #include "string_view.h"
+#include <stddef.h>
 
 typedef struct {
-    StringBuffer str;
+    const char *name;
+    StringView value;
+} TemplateVariable;
+
+typedef struct {
+    TemplateVariable *variables;
+    size_t variable_count;
+    size_t variable_capacity;
 } Template;
 
-Template template_init(const char *template);
+void template_define(Template *template, const char *name, StringView value);
+StringBuffer template_build(Template *template, const char *source);
 void template_free(Template *template);
-void template_replace_sv(Template *template, const char *key, StringView sv);
 
 #endif

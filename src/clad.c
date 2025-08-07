@@ -611,33 +611,41 @@ static StringView into_string_view(StringBuffer str) {
 }
 
 static void write_output_header(GenerationContext ctx) {
+    Template template = { 0 };
+
+    template_define(&template, "TYPES", into_string_view(ctx.types));
+    template_define(&template, "ENUMS", into_string_view(ctx.enums));
+    template_define(&template, "COMMAND_DECLARATIONS",
+                    into_string_view(ctx.command_decls));
+
     char *template_str = xml_read_file(ctx.header_template_path);
-    Template template = template_init(template_str);
+    StringBuffer built = template_build(&template, template_str);
     free(template_str);
 
-    template_replace_sv(&template, "%TYPES%", into_string_view(ctx.types));
-    template_replace_sv(&template, "%ENUMS%", into_string_view(ctx.enums));
-    template_replace_sv(&template, "%COMMAND_DECLARATIONS%",
-                        into_string_view(ctx.command_decls));
-
-    fwrite(template.str.ptr, sizeof(*template.str.ptr), template.str.length,
+    fwrite(built.ptr, sizeof(*built.ptr), built.length,
            ctx.output_header);
+
     template_free(&template);
+    sb_free(built);
 }
 
 static void write_output_source(GenerationContext ctx) {
+    Template template = { 0 };
+
+    template_define(&template, "COMMAND_LOOKUP",
+                    into_string_view(ctx.command_lookup));
+    template_define(&template, "COMMAND_WRAPPERS",
+                    into_string_view(ctx.command_wrappers));
+
     char *template_str = xml_read_file(ctx.source_template_path);
-    Template template = template_init(template_str);
+    StringBuffer built = template_build(&template, template_str);
     free(template_str);
 
-    template_replace_sv(&template, "%COMMAND_LOOKUP%",
-                        into_string_view(ctx.command_lookup));
-    template_replace_sv(&template, "%COMMAND_WRAPPERS%",
-                        into_string_view(ctx.command_wrappers));
-
-    fwrite(template.str.ptr, sizeof(*template.str.ptr), template.str.length,
+    fwrite(built.ptr, sizeof(*built.ptr), built.length,
            ctx.output_source);
+
     template_free(&template);
+    sb_free(built);
 }
 
 static StringView get_enum_name(xml_Token _enum) {

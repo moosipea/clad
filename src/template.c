@@ -1,62 +1,65 @@
 #include "template.h"
 #include "string_buffer.h"
 #include "string_view.h"
-#include <stddef.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <stdio.h>
 
-static int find_key(StringBuffer str, const char *key) {
-    for (size_t i = 0; i < str.length; i++) {
-        StringView substr = {
-            .start = &str.ptr[i],
-            .length = str.length - i,
-        };
-        if (sv_equal_cstr(substr, key)) {
-            return i;
-        }
-    }
-    return -1;
-}
+#define VARIABLE_START_COUNT 8
 
-Template template_init(const char *template) {
-    Template templ = { 0 };
-    templ.str = sb_new_buffer();
-    sb_puts(template, &templ.str);
-    return templ;
-}
-
-void template_free(Template *template) { sb_free(template->str); }
-
-// TODO: instead of naïvely replacing, parse the template character by
-// character. When a '%' is encountered, scan the list of predefines
-// replacements.
-
-void template_replace_sv(Template *template, const char *key, StringView sv) {
-    int position = find_key(template->str, key);
-    if (position < 0) {
-        return;
+void template_define(Template *t, const char *name, StringView value) {
+    if (t->variables == NULL) {
+        t->variable_capacity = VARIABLE_START_COUNT;
+        t->variables = calloc(t->variable_capacity, sizeof(*t->variables));
     }
 
+    if (t->variable_count >= t->variable_capacity) {
+        t->variable_capacity *= 2;
+        t->variables =
+            realloc(t->variables, t->variable_capacity * sizeof(*t->variables));
+    }
+
+    t->variables[t->variable_count++] = (TemplateVariable){
+        .name = name,
+        .value = value,
+    };
+}
+
+StringBuffer template_build(Template *template, const char *source) {
     StringBuffer sb = sb_new_buffer();
 
-    if (position == 0) {
-        sb_putsn(&sb, sv.start, sv.length);
-        sb_putsn(&sb, template->str.ptr, template->str.length);
-    } else {
-        size_t key_length = convenient_strlen(key);
+    char ch;
+    while ((ch = (source++)[0]) != '\0') {
+        if (ch != '%') {
+            sb_putc(ch, &sb);
+            continue;
+        }
 
-        StringView pre = {
-            .start = template->str.ptr,
-            .length = position,
-        };
-        StringView post = {
-            .start = &template->str.ptr[position + key_length],
-            .length = template->str.length - position - key_length,
-        };
+        bool found = false;
+        for (size_t i = 0; i < template->variable_count; i++) {
+            TemplateVariable var = template->variables[i];
+            size_t var_name_len = convenient_strlen(var.name);
 
-        sb_putsn(&sb, pre.start, pre.length);
-        sb_putsn(&sb, sv.start, sv.length);
-        sb_putsn(&sb, post.start, post.length);
+            if (!convenient_starts_with(source, var.name)) {
+                continue;
+            }
+
+            if (source[var_name_len] != '%') {
+                continue;
+            }
+
+            source = &source[var_name_len + 1];
+            sb_putsn(&sb, var.value.start, var.value.length);
+            found = true;
+            break;
+        }
+
+        if (!found) {
+            fprintf(stderr, "error: unknown template variable\n");
+        }
     }
 
-    sb_free(template->str);
-    template->str = sb;
+    return sb;
 }
+
+void template_free(Template *template) { free(template->variables); }
