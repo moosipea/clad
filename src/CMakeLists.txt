@@ -3,6 +3,11 @@ add_executable(clad_generator
     xml.c
     string_buffer.c
     string_view.c
+    template.c
+)
+
+target_compile_options(clad_generator PRIVATE
+    -Wall -Wextra -pedantic
 )
 
 if(NOT CLAD_GL_API)
@@ -37,6 +42,8 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E make_directory ${GENERATED_SOURCE_DIR}
     COMMAND clad_generator
         --in-xml ${PROJECT_SOURCE_DIR}/files/gl.xml
+        --header-template ${PROJECT_SOURCE_DIR}/files/template.h
+        --source-template ${PROJECT_SOURCE_DIR}/files/template.c
         --out-header ${GENERATED_HEADER}
         --out-source ${GENERATED_SOURCE}
         --api ${CLAD_GL_API}

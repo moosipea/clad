@@ -10,6 +10,19 @@ bool cstr_starts_with_sv(const char *str, StringView with) {
     return true;
 }
 
+bool sv_starts_with_cstr(StringView str, const char *with) {
+    for (size_t i = 0; i < str.length; i++) {
+        if (with[i] == '\0') {
+            break;
+        }
+        if (str.start[i] != with[i]) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 bool sv_equal(StringView a, StringView b) {
     if (a.length != b.length) {
         return false;
@@ -52,4 +65,17 @@ size_t convenient_strlen(const char *str) {
         length++;
     }
     return length;
+}
+
+bool convenient_streq(const char *a, const char *b) {
+    size_t i = 0;
+
+    while (a[i] == b[i]) {
+        if (a[i] == '\0') {
+            return true;
+        }
+        i++;
+    }
+
+    return false;
 }

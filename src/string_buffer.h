@@ -1,7 +1,7 @@
 #ifndef STRING_BUFFER_H
 #define STRING_BUFFER_H
 
-#include <stdlib.h>
+#include <stddef.h>
 
 typedef struct {
     char *ptr;
