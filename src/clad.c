@@ -636,7 +636,7 @@ static void write_output_source(GenerationContext ctx) {
                         into_string_view(ctx.command_wrappers));
 
     fwrite(template.str.ptr, sizeof(*template.str.ptr), template.str.length,
-           ctx.output_header);
+           ctx.output_source);
     template_free(&template);
 }
 
@@ -732,53 +732,16 @@ typedef enum { ARG_STRING, ARG_BOOL } ArgType;
 typedef struct {
     ArgType type;
     const char *flag;
-    bool optional;
     void *dest;
+    bool optional;
+    bool found;
 } Arg;
 
-static bool parse_args(Arg *arguments, size_t count, char **argv) {
-    size_t expected_count = 0;
-    size_t current_count = 0;
-
-    for (size_t i = 0; i < count; i++) {
-        if (!arguments[i].optional) {
-            expected_count++;
-        }
+static void print_arg(Arg arg, FILE *fp) {
+    fputs(arg.flag, fp);
+    if (arg.type == ARG_STRING) {
+        fputs(" <string>", fp);
     }
-
-    shift_arguments(&argv);
-    const char *next = NULL;
-
-    while ((next = shift_arguments(&argv))) {
-        if (!convenient_streq(next, "\\")) {
-            continue;
-        }
-
-        for (size_t i = 0; i < count; i++) {
-            Arg arg = arguments[i];
-
-            if (!convenient_streq(next, arg.flag)) {
-                continue;
-            }
-
-            switch (arg.type) {
-            case ARG_STRING:
-                *(char **)arg.dest = shift_arguments(&argv);
-                break;
-            case ARG_BOOL:
-                *(bool *)arg.dest = true;
-                break;
-            }
-
-            if (!arg.optional) {
-                current_count++;
-            }
-
-            break;
-        }
-    }
-
-    return expected_count == current_count;
 }
 
 static void print_clad_usage(Arg *arguments, size_t arg_count) {
@@ -792,10 +755,7 @@ static void print_clad_usage(Arg *arguments, size_t arg_count) {
             fputc('[', stderr);
         }
 
-        fputs(arg.flag, stderr);
-        if (arg.type == ARG_STRING) {
-            fputs(" <string>", stderr);
-        }
+        print_arg(arg, stderr);
 
         if (arg.optional) {
             fputc(']', stderr);
@@ -803,6 +763,55 @@ static void print_clad_usage(Arg *arguments, size_t arg_count) {
 
         fputc('\n', stderr);
     }
+}
+
+static bool parse_args(Arg *arguments, size_t count, char **argv) {
+    shift_arguments(&argv);
+    const char *next = NULL;
+
+    while ((next = shift_arguments(&argv))) {
+        if (convenient_streq(next, "\\")) {
+            continue;
+        }
+
+        for (size_t i = 0; i < count; i++) {
+            Arg *arg = &arguments[i];
+
+            if (!convenient_streq(next, arg->flag)) {
+                continue;
+            }
+
+            switch (arg->type) {
+            case ARG_STRING:
+                *(char **)arg->dest = shift_arguments(&argv);
+                break;
+            case ARG_BOOL:
+                *(bool *)arg->dest = true;
+                break;
+            }
+
+            arg->found = true;
+            break;
+        }
+    }
+
+    bool perfect_parse = true;
+
+    for (size_t i = 0; i < count; i++) {
+        Arg arg = arguments[i];
+        if (arg.optional) {
+            continue;
+        }
+
+        if (!arg.found) {
+            fputs("error: missing argument: ", stderr);
+            print_arg(arg, stderr);
+            fputc('\n', stderr);
+            perfect_parse = false;
+        }
+    }
+
+    return perfect_parse;
 }
 
 static CladOptions parse_raw_args(RawArguments raw_args) {
@@ -847,10 +856,12 @@ static CladOptions parse_commandline_arguments(char **argv) {
     RawArguments raw_args = { 0 };
 
     Arg arguments[] = {
-        { .type = ARG_BOOL,
-          .flag = "--snake-case",
-          .optional = true,
-          .dest = &raw_args.use_snake_case },
+        {
+            .type = ARG_BOOL,
+            .flag = "--snake-case",
+            .optional = true,
+            .dest = &raw_args.use_snake_case,
+        },
         {
             .type = ARG_STRING,
             .flag = "--in-xml",
@@ -897,7 +908,6 @@ static CladOptions parse_commandline_arguments(char **argv) {
 
     CladOptions opts = { 0 };
     if (!parse_args(arguments, arg_count, argv)) {
-        print_clad_usage(arguments, arg_count);
         return opts;
     }
 

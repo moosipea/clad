@@ -42,6 +42,8 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E make_directory ${GENERATED_SOURCE_DIR}
     COMMAND clad_generator
         --in-xml ${PROJECT_SOURCE_DIR}/files/gl.xml
+        --header-template ${PROJECT_SOURCE_DIR}/files/template.h
+        --source-template ${PROJECT_SOURCE_DIR}/files/template.c
         --out-header ${GENERATED_HEADER}
         --out-source ${GENERATED_SOURCE}
         --api ${CLAD_GL_API}

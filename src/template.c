@@ -7,7 +7,7 @@ static int find_key(StringBuffer str, const char *key) {
     for (size_t i = 0; i < str.length; i++) {
         StringView substr = {
             .start = &str.ptr[i],
-            .length = substr.length - i,
+            .length = str.length - i,
         };
         if (sv_equal_cstr(substr, key)) {
             return i;
@@ -24,6 +24,10 @@ Template template_init(const char *template) {
 }
 
 void template_free(Template *template) { sb_free(template->str); }
+
+// TODO: instead of naïvely replacing, parse the template character by
+// character. When a '%' is encountered, scan the list of predefines
+// replacements.
 
 void template_replace_sv(Template *template, const char *key, StringView sv) {
     int position = find_key(template->str, key);
