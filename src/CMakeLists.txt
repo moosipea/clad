@@ -6,6 +6,10 @@ add_executable(clad_generator
     template.c
 )
 
+target_compile_options(clad_generator PRIVATE
+    -Wall -Wextra -pedantic
+)
+
 if(NOT CLAD_GL_API)
     set(CLAD_GL_API "gl")
 endif()

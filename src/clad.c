@@ -94,15 +94,27 @@ typedef struct {
     const char *input_xml;
     const char *output_header;
     const char *output_source;
+    const char *api;
+    const char *profile;
+    const char *version;
+    const char *header_template;
+    const char *source_template;
+    bool use_snake_case;
+} RawArguments;
+
+typedef struct {
+    const char *input_xml;
+    const char *output_header;
+    const char *output_source;
+    const char *header_template_path;
+    const char *source_template_path;
     GLAPIType api;
     GLProfile profile;
     GLVersion version;
-
-    // Optional
     bool use_snake_case;
 
     bool parsed_succesfully;
-} CladArguments;
+} CladOptions;
 
 typedef enum {
     DEF_ENUM,
@@ -177,21 +189,21 @@ typedef struct {
     FILE *output_source;
 } GenerationContext;
 
-static GenerationContext init_context(bool use_snake_case, GLAPIType api,
-                                      GLProfile profile, GLVersion version,
-                                      FILE *output_header,
+static GenerationContext init_context(CladOptions opts, FILE *output_header,
                                       FILE *output_source) {
     GenerationContext ctx = { 0 };
-    ctx.use_snake_case = use_snake_case;
-    ctx.api = api;
-    ctx.profile = profile;
-    ctx.version = version;
+    ctx.use_snake_case = opts.use_snake_case;
+    ctx.api = opts.api;
+    ctx.profile = opts.profile;
+    ctx.version = opts.version;
     ctx.requirements = rl_init();
     ctx.types = sb_new_buffer();
     ctx.enums = sb_new_buffer();
     ctx.command_lookup = sb_new_buffer();
     ctx.command_wrappers = sb_new_buffer();
     ctx.command_decls = sb_new_buffer();
+    ctx.header_template_path = opts.header_template_path;
+    ctx.source_template_path = opts.source_template_path;
     ctx.output_header = output_header;
     ctx.output_source = output_source;
     return ctx;
@@ -599,7 +611,7 @@ static StringView into_string_view(StringBuffer str) {
 }
 
 static void write_output_header(GenerationContext ctx) {
-    char *template_str = xml_read_file(HEADER_TEMPLATE_FILE);
+    char *template_str = xml_read_file(ctx.header_template_path);
     Template template = template_init(template_str);
     free(template_str);
 
@@ -614,7 +626,7 @@ static void write_output_header(GenerationContext ctx) {
 }
 
 static void write_output_source(GenerationContext ctx) {
-    char *template_str = xml_read_file(SOURCE_TEMPLATE_FILE);
+    char *template_str = xml_read_file(ctx.source_template_path);
     Template template = template_init(template_str);
     free(template_str);
 
@@ -669,13 +681,11 @@ static void generate_enum(GenerationContext *ctx, xml_Token root,
     }
 }
 
-static void generate(xml_Token root, CladArguments args, FILE *output_header,
+static void generate(xml_Token root, CladOptions args, FILE *output_header,
                      FILE *output_source) {
     assert(root.type == XML_TOKEN_NODE);
 
-    GenerationContext ctx =
-        init_context(args.use_snake_case, args.api, args.profile, args.version,
-                     output_header, output_source);
+    GenerationContext ctx = init_context(args, output_header, output_source);
     generate_types(&ctx, root);
     gather_featureset(&ctx, root);
 
@@ -702,24 +712,12 @@ static void generate(xml_Token root, CladArguments args, FILE *output_header,
     free_context(ctx);
 }
 
-char *shift_arguments(char ***argv) {
+static char *shift_arguments(char ***argv) {
     char *next_string = **argv;
     if (next_string != NULL) {
         (*argv)++;
     }
     return next_string;
-}
-
-static bool parse_kv(char ***argv, char **value, const char *current_arg,
-                     const char *key, const char *value_kind) {
-    if (convenient_streq(current_arg, key)) {
-        *value = shift_arguments(argv);
-        if (*value == NULL) {
-            fprintf(stderr, "error: expected %s after %s!\n", value_kind, key);
-        }
-        return true;
-    }
-    return false;
 }
 
 static StringView sv_from_cstr(const char *str) {
@@ -729,85 +727,190 @@ static StringView sv_from_cstr(const char *str) {
     return sv;
 }
 
-static CladArguments parse_commandline_arguments(char **args) {
-    CladArguments parsed_arguments = { 0 };
+typedef enum { ARG_STRING, ARG_BOOL } ArgType;
 
-    char **argv = args;
-    char *value = NULL;
-    int has_been_parsed = 0;
-    const char *next_argument = NULL;
+typedef struct {
+    ArgType type;
+    const char *flag;
+    bool optional;
+    void *dest;
+} Arg;
 
-    // Skip first argument.
-    shift_arguments(&argv);
+static bool parse_args(Arg *arguments, size_t count, char **argv) {
+    size_t expected_count = 0;
+    size_t current_count = 0;
 
-    while ((next_argument = shift_arguments(&argv))) {
-        if (convenient_streq(next_argument, "\\")) {
-            continue;
-        }
-        if (convenient_streq(next_argument, "--snake-case")) {
-            parsed_arguments.use_snake_case = true;
-        } else if (parse_kv(&argv, &value, next_argument, "--in-xml",
-                            "file path")) {
-            if (!value)
-                break;
-            parsed_arguments.input_xml = value;
-            has_been_parsed |= 0x01;
-        } else if (parse_kv(&argv, &value, next_argument, "--out-header",
-                            "file path")) {
-            if (!value)
-                break;
-            parsed_arguments.output_header = value;
-            has_been_parsed |= 0x02;
-        } else if (parse_kv(&argv, &value, next_argument, "--out-source",
-                            "file path")) {
-            if (!value)
-                break;
-            parsed_arguments.output_source = value;
-            has_been_parsed |= 0x04;
-        } else if (parse_kv(&argv, &value, next_argument, "--api", "api")) {
-            if (!value)
-                break;
-            GLAPIType api = gl_api_from_sv(sv_from_cstr(value));
-            if (api == GL_API_INVALID) {
-                fprintf(stderr, "error: failed to parse API version: %s\n",
-                        value);
-                break;
-            }
-            parsed_arguments.api = api;
-            has_been_parsed |= 0x08;
-        } else if (parse_kv(&argv, &value, next_argument, "--profile",
-                            "profile")) {
-            if (!value)
-                break;
-            GLProfile profile = gl_profile_from_sv(sv_from_cstr(value));
-            if (profile == GL_PROFILE_INVALID) {
-                fprintf(stderr, "error: failed to parse profile: %s\n", value);
-                break;
-            }
-            parsed_arguments.profile = profile;
-            has_been_parsed |= 0x10;
-        } else if (parse_kv(&argv, &value, next_argument, "--version",
-                            "version")) {
-            if (!value)
-                break;
-            GLVersion version = gl_version_from_sv_short(sv_from_cstr(value));
-            if (version == GL_VERSION_INVALID) {
-                fprintf(stderr, "error: failed to parse version: %s\n", value);
-                break;
-            }
-            parsed_arguments.version = version;
-            has_been_parsed |= 0x20;
+    for (size_t i = 0; i < count; i++) {
+        if (!arguments[i].optional) {
+            expected_count++;
         }
     }
 
-    parsed_arguments.parsed_succesfully = has_been_parsed == 0x3f;
-    return parsed_arguments;
+    shift_arguments(&argv);
+    const char *next = NULL;
+
+    while ((next = shift_arguments(&argv))) {
+        if (!convenient_streq(next, "\\")) {
+            continue;
+        }
+
+        for (size_t i = 0; i < count; i++) {
+            Arg arg = arguments[i];
+
+            if (!convenient_streq(next, arg.flag)) {
+                continue;
+            }
+
+            switch (arg.type) {
+            case ARG_STRING:
+                *(char **)arg.dest = shift_arguments(&argv);
+                break;
+            case ARG_BOOL:
+                *(bool *)arg.dest = true;
+                break;
+            }
+
+            if (!arg.optional) {
+                current_count++;
+            }
+
+            break;
+        }
+    }
+
+    return expected_count == current_count;
+}
+
+static void print_clad_usage(Arg *arguments, size_t arg_count) {
+    fprintf(stderr, "Expected arguments:\n");
+
+    for (size_t i = 0; i < arg_count; i++) {
+        Arg arg = arguments[i];
+        fputc('\t', stderr);
+
+        if (arg.optional) {
+            fputc('[', stderr);
+        }
+
+        fputs(arg.flag, stderr);
+
+        if (arg.optional) {
+            fputc(']', stderr);
+        }
+
+        fputc('\n', stderr);
+    }
+}
+
+static CladOptions parse_raw_args(RawArguments raw_args) {
+    CladOptions opts = {
+        .input_xml = raw_args.input_xml,
+        .output_header = raw_args.output_header,
+        .output_source = raw_args.output_source,
+        .header_template_path = raw_args.header_template,
+        .source_template_path = raw_args.source_template,
+        .use_snake_case = raw_args.use_snake_case,
+        .parsed_succesfully = true,
+    };
+
+    // Parse OpenGL API
+    opts.api = gl_api_from_sv(sv_from_cstr(raw_args.api));
+    if (opts.api == GL_API_INVALID) {
+        fprintf(stderr, "error: failed to parse API version: %s\n",
+                raw_args.api);
+        opts.parsed_succesfully = false;
+    }
+
+    // Parse OpenGL profile
+    opts.profile = gl_profile_from_sv(sv_from_cstr(raw_args.profile));
+    if (opts.profile == GL_PROFILE_INVALID) {
+        fprintf(stderr, "error: failed to parse profile: %s\n",
+                raw_args.profile);
+        opts.parsed_succesfully = false;
+    }
+
+    // Parse OpenGL version
+    opts.version = gl_version_from_sv_short(sv_from_cstr(raw_args.version));
+    if (opts.version == GL_VERSION_INVALID) {
+        fprintf(stderr, "error: failed to parse version: %s\n",
+                raw_args.version);
+        opts.parsed_succesfully = false;
+    }
+
+    return opts;
+}
+
+static CladOptions parse_commandline_arguments(char **argv) {
+    RawArguments raw_args = { 0 };
+
+    Arg arguments[] = {
+        { .type = ARG_BOOL,
+          .flag = "--snake-case",
+          .optional = true,
+          .dest = &raw_args.use_snake_case },
+        {
+            .type = ARG_STRING,
+            .flag = "--in-xml",
+            .dest = &raw_args.input_xml,
+        },
+        {
+            .type = ARG_STRING,
+            .flag = "--out-header",
+            .dest = &raw_args.output_header,
+        },
+        {
+            .type = ARG_STRING,
+            .flag = "--out-source",
+            .dest = &raw_args.output_source,
+        },
+        {
+            .type = ARG_STRING,
+            .flag = "--api",
+            .dest = &raw_args.api,
+        },
+        {
+            .type = ARG_STRING,
+            .flag = "--profile",
+            .dest = &raw_args.profile,
+        },
+        {
+            .type = ARG_STRING,
+            .flag = "--version",
+            .dest = &raw_args.version,
+        },
+        {
+            .type = ARG_STRING,
+            .flag = "--header-template",
+            .dest = &raw_args.header_template,
+        },
+        {
+            .type = ARG_STRING,
+            .flag = "--source-template",
+            .dest = &raw_args.source_template,
+        },
+    };
+
+    size_t arg_count = sizeof(arguments) / sizeof(*arguments);
+
+    CladOptions opts = { 0 };
+    if (!parse_args(arguments, arg_count, argv)) {
+        print_clad_usage(arguments, arg_count);
+        return opts;
+    }
+
+    opts = parse_raw_args(raw_args);
+
+    if (!opts.parsed_succesfully) {
+        print_clad_usage(arguments, arg_count);
+    }
+
+    return opts;
 }
 
 static FILE *try_to_open(const char *path, const char *mode) {
     FILE *fp = fopen(path, mode);
 
-    if (!fp) {
+    if (fp == NULL) {
         fprintf(stderr, "error: couldn't open `%s`!\n", path);
     }
 
@@ -824,30 +927,22 @@ int main(int argc, char **argv) {
     (void)argc;
     int ret = EXIT_FAILURE;
 
-    CladArguments arguments = parse_commandline_arguments(argv);
-    if (!arguments.parsed_succesfully) {
-        fprintf(stderr, "Usage: clad "
-                        "--in-xml <file> "
-                        "--out-header <file> "
-                        "--out-source <file> "
-                        "--api <openl api> "
-                        "--profile <opengl profile> "
-                        "--version <opengl version> "
-                        "[--snake-case]\n");
+    CladOptions opts = parse_commandline_arguments(argv);
+    if (!opts.parsed_succesfully) {
         return ret;
     }
 
-    FILE *output_header = try_to_open(arguments.output_header, "w");
-    FILE *output_source = try_to_open(arguments.output_source, "w");
+    FILE *output_header = try_to_open(opts.output_header, "w");
+    FILE *output_source = try_to_open(opts.output_source, "w");
 
     if (output_header && output_source) {
         xml_Token root;
-        char *src = xml_read_file(arguments.input_xml);
+        char *src = xml_read_file(opts.input_xml);
         if (!src)
             goto failure;
 
         if (xml_parse_file(src, &root)) {
-            generate(root, arguments, output_header, output_source);
+            generate(root, opts, output_header, output_source);
             xml_free(root);
         }
 
