@@ -793,6 +793,9 @@ static void print_clad_usage(Arg *arguments, size_t arg_count) {
         }
 
         fputs(arg.flag, stderr);
+        if (arg.type == ARG_STRING) {
+            fputs(" <string>", stderr);
+        }
 
         if (arg.optional) {
             fputc(']', stderr);
