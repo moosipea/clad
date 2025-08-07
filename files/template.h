@@ -4,6 +4,8 @@
 typedef void (*CladProc)(void);
 typedef CladProc (CladProcAddrLoader)(const char *);
 
+int clad_init_gl(CladProcAddrLoader load_proc);
+
 %TYPES%
 
 %ENUMS%
